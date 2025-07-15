@@ -316,7 +316,7 @@ import os
 TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
     # 本地调试可直接写死
-    TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
+    TOKEN = "8016069833:AAF8kBlScURT6OwamdebX0qnlj5rAFMsXdk"
 
 def is_admin_or_authorized(user_id):
     return str(user_id) in config["admins"] or str(user_id) in config["authorized"]
