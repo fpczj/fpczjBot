@@ -1,4 +1,3 @@
-
 import logging
 import json
 import os
@@ -312,11 +311,7 @@ def init_db():
 
 init_db()
 
-import os
-TOKEN = os.environ.get("TOKEN")
-if not TOKEN:
-    # 本地调试可直接写死
-    TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
+TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
 
 def is_admin_or_authorized(user_id):
     return str(user_id) in config["admins"] or str(user_id) in config["authorized"]
@@ -381,11 +376,10 @@ async def show_menu(update):
     menu = (
         "欢迎使用记账机器人！\n\n"
         "可用指令：\n"
-        "1.账单、报表、清除、查询、返回、授权、收入、帮助\n"
-        "2.直接输入“收入 金额”或“收入 金额 描述”为收入；\n"
-        "3.输入“+或-金额 描述”为支出。\n"
-        "4.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认。\n"
-        "5.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
+        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
+        "2.输入“+或-金额 描述”为支出;\n\n"
+        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认；\n\n"
+        "4.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
     )
     await update.message.reply_text(menu)
 
@@ -401,9 +395,9 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not (is_admin(user_id) or is_authorized(user_id)):
             return
     help_text = (
-        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n"
-        "2.输入“+或-金额 描述”为支出。\n"
-        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认。\n"
+        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
+        "2.输入“+或-金额 描述”为支出；\n\n"
+        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认；\n\n"
         "4.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
     )
     await update.message.reply_text(help_text)
@@ -752,7 +746,7 @@ async def handle_auth_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_type == "private" and is_admin(user_id):
         return
     if text == "1":
-        await update.message.reply_text("请输入被授权人用户名：")
+        await update.message.reply_text("请输入被授权人用户名和天数：（比如@***** 3）输入3代表授权3天，输入其他数字代表授权授权天数")
         user_state[user_id] = AUTH_USER
         set_timeout(user_id)
     elif text == "2":
@@ -769,37 +763,20 @@ async def handle_auth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_state.get(user_id, WAITING) != AUTH_USER:
         return
     text = update.message.text.strip()
-    if not text.startswith("@"): 
-        await update.message.reply_text("您的输入有误。"); reset_state(user_id); return
-    username = text.split()[0]
-    users = load_users()
-    if username in users:
-        user_temp[user_id] = {"auth_username": username}
-        await update.message.reply_text("请输入授权天数：")
-        user_state[user_id] = AUTH_DAYS
-        set_timeout(user_id)
-    else:
-        await update.message.reply_text("群组内无该用户。")
+    parts = text.split()
+    if len(parts) != 2 or not parts[0].startswith("@"):
+        await update.message.reply_text("输入格式有误，请输入：@用户名 天数，例如@user 3")
         reset_state(user_id)
-
-# 新增处理授权天数的状态
-async def handle_auth_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_state.get(user_id, WAITING) != AUTH_DAYS:
         return
-    text = update.message.text.strip()
-    # 支持中文数字一/二
-    cn_digit_map = {'一': 1, '二': 2}
-    if text in cn_digit_map:
-        days = cn_digit_map[text]
-    else:
-        try:
-            days = int(text)
-            if days <= 0 or days > 365:
-                raise ValueError()
-        except Exception:
-            await update.message.reply_text("请输入正确的天数（1-365）！"); reset_state(user_id); return
-    username = user_temp[user_id].get("auth_username")
+    username = parts[0]
+    try:
+        days = int(parts[1])
+        if days <= 0 or days > 365:
+            raise ValueError()
+    except Exception:
+        await update.message.reply_text("请输入正确的天数（1-365）！")
+        reset_state(user_id)
+        return
     users = load_users()
     if username in users:
         uid = users[username]
@@ -809,10 +786,14 @@ async def handle_auth_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config["auth_expire"] = {}
         config["auth_expire"][uid] = time.time() + days*24*3600
         save_config(config)
-        await update.message.reply_text(f"你已授权{username} {days}天。\n授权时间到期后被授权人需要重新授权。")
+        await update.message.reply_text(f"{username}已授权{days}天。\n授权时间到期后被授权人需要重新授权。")
     else:
         await update.message.reply_text("群组内无该用户。")
     reset_state(user_id)
+
+# 新增处理授权天数的状态
+    # 已合并到 handle_auth_user，一步输入 @用户名 天数
+    pass
 
 async def handle_unauth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1679,9 +1660,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     application = Application.builder().token(TOKEN).build()
     # 授权类型选择（1/2）
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^[12]$"), handle_auth_type))
+    # application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^[12]$"), handle_auth_type))
     # 授权天数输入处理（正则允许前后空格和中文一二，注册顺序在 handle_auth_type 之后）
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^\s*(\d{1,3}|[一二])\s*$"), handle_auth_days))
+    # application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^\s*(\d{1,3}|[一二])\s*$"), handle_auth_days))
     application.add_handler(CommandHandler("start", start))
     # 先注册所有文本命令，保证优先匹配
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^(添加错别字|删除错别字|查看错别字)"), typo_cmd))
