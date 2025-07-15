@@ -312,7 +312,11 @@ def init_db():
 
 init_db()
 
-TOKEN = os.environ.get"7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
+import os
+TOKEN = os.environ.get("TOKEN")
+if not TOKEN:
+    # 本地调试可直接写死
+    TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
 
 def is_admin_or_authorized(user_id):
     return str(user_id) in config["admins"] or str(user_id) in config["authorized"]
