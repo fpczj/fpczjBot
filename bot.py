@@ -410,14 +410,16 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += "\n【支出分类】\n"
     if expense_rows:
         for cat, amt in expense_rows:
-            msg += f"{cat or '未分类'}：{amt:.2f}\n"
+            amt_str = f"{amt:.2f}" if amt >= 0 else f"-{abs(amt):.2f}"
+            msg += f"{cat or '未分类'}：{amt_str}\n"
     else:
         msg += "无支出记录\n"
     msg += f"总支出：{total_expense:.2f}\n"
     msg += "\n【收入分类】\n"
     if income_rows:
         for cat, amt in income_rows:
-            msg += f"{cat or '未分类'}：{amt:.2f}\n"
+            amt_str = f"{amt:.2f}" if amt >= 0 else f"-{abs(amt):.2f}"
+            msg += f"{cat or '未分类'}：{amt_str}\n"
     else:
         msg += "无收入记录\n"
     msg += f"总收入：{total_income:.2f}"
@@ -1226,7 +1228,8 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
     month_total = c.fetchone()[0] or 0.0
     conn.close()
     def fmt_amt(val):
-        return f"{val:.2f}"
+        return f"{val:.2f}" if val >= 0 else f"-{abs(val):.2f}"
+    print(f"[DEBUG] reply_record_success: amount={amount}, day_total={day_total}, month_total={month_total}")
     amt_str = f"{amount:.2f}" if amount >= 0 else f"-{abs(amount):.2f}"
     msg = f"记录成功：{amt_str}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
     start_num = len(all_rows) - len(rows) + 1
@@ -1743,6 +1746,7 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         desc = m.group(2) if m.group(2) else "未填写"
         today = date.today().strftime("%Y-%m-%d")
         category = auto_categorize(desc)
+        print(f"[DEBUG] handle_record: 收入 amount={amount}, desc={desc}")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute(
@@ -1765,6 +1769,7 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         today = date.today().strftime("%Y-%m-%d")
         type_ = "expense"
         category = auto_categorize(desc)
+        print(f"[DEBUG] handle_record: 支出 amount={amount}, desc={desc}")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute(
@@ -1792,13 +1797,14 @@ async def quick_keyword_query(update, user_id, text):
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=?", 
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=", 
             (str(user_id), qtype, qdate)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"今天收入明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {abs(row[0]):.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            amt_str = f"{row[0]:.2f}" if row[0] >= 0 else f"-{abs(row[0]):.2f}"
+            msg += f"{i} | {amt_str} | {row[1]} | {row[2]} | {row[3]}\n"
         msg += f"今天总收入：{total:.2f}"
     elif text in ["今天支出", "今日支出"]:
         qtype = "expense"
@@ -1815,8 +1821,9 @@ async def quick_keyword_query(update, user_id, text):
         total = c.fetchone()[0] or 0.0
         msg = f"今天支出明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-        msg += f"今天总支出：{abs(total):.2f}"
+            amt_str = f"{row[0]:.2f}" if row[0] >= 0 else f"-{abs(row[0]):.2f}"
+            msg += f"{i} | {amt_str} | {row[1]} | {row[2]} | {row[3]}\n"
+        msg += f"今天总支出：{total:.2f}"
     elif text in ["本月收入"]:
         qtype = "income"
         qmonth = today.strftime("%Y-%m")
@@ -1832,7 +1839,8 @@ async def quick_keyword_query(update, user_id, text):
         total = c.fetchone()[0] or 0.0
         msg = f"本月收入明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            amt_str = f"{row[0]:.2f}" if row[0] >= 0 else f"-{abs(row[0]):.2f}"
+            msg += f"{i} | {amt_str} | {row[1]} | {row[2]} | {row[3]}\n"
         msg += f"本月总收入：{total:.2f}"
     elif text in ["本月支出"]:
         qtype = "expense"
@@ -1849,8 +1857,9 @@ async def quick_keyword_query(update, user_id, text):
         total = c.fetchone()[0] or 0.0
         msg = f"本月支出明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-        msg += f"本月总支出：{abs(total):.2f}"
+            amt_str = f"{row[0]:.2f}" if row[0] >= 0 else f"-{abs(row[0]):.2f}"
+            msg += f"{i} | {amt_str} | {row[1]} | {row[2]} | {row[3]}\n"
+        msg += f"本月总支出：{total:.2f}"
     elif text in ["上月收入"]:
         qtype = "income"
         last_month = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
@@ -1866,7 +1875,8 @@ async def quick_keyword_query(update, user_id, text):
         total = c.fetchone()[0] or 0.0
         msg = f"上月收入明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            amt_str = f"{row[0]:.2f}" if row[0] >= 0 else f"-{abs(row[0]):.2f}"
+            msg += f"{i} | {amt_str} | {row[1]} | {row[2]} | {row[3]}\n"
         msg += f"上月总收入：{total:.2f}"
     elif text in ["上月支出"]:
         qtype = "expense"
@@ -1883,8 +1893,9 @@ async def quick_keyword_query(update, user_id, text):
         total = c.fetchone()[0] or 0.0
         msg = f"上月支出明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-        msg += f"上月总支出：{abs(total):.2f}"
+            amt_str = f"{row[0]:.2f}" if row[0] >= 0 else f"-{abs(row[0]):.2f}"
+            msg += f"{i} | {amt_str} | {row[1]} | {row[2]} | {row[3]}\n"
+        msg += f"上月总支出：{total:.2f}"
     conn.close()
     if msg:
         await update.message.reply_text(msg)
