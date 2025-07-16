@@ -898,14 +898,16 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
     )
     month_total = c.fetchone()[0] or 0.0
     conn.close()
-    msg = f"记录成功：{amount}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
+    def fmt_amt(val):
+        return f"{-val:.2f}" if record_type == 'expense' else f"{val:.2f}"
+    msg = f"记录成功：{fmt_amt(amount)}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
     start_num = len(all_rows) - len(rows) + 1
     for i, row in enumerate(rows, start_num):
-        msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} |"
+        msg += f"{i}| {fmt_amt(row[0])} | {row[1]} | {row[2]} |"
         if row[3] != today:
             msg += f" ({row[3]})"
         msg += "\n"
-    msg += f"\n当天累计{'收入' if record_type=='income' else '支出'}：{day_total:.2f}\n本月累计{'收入' if record_type=='income' else '支出'}：{month_total:.2f}"
+    msg += f"\n当天累计{'收入' if record_type=='income' else '支出'}：{fmt_amt(day_total)}\n本月累计{'收入' if record_type=='income' else '支出'}：{fmt_amt(month_total)}"
     await update.message.reply_text(msg)
 
 # 优化自然语言记账解析
