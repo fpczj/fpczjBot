@@ -160,12 +160,17 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 支持“上月统计”“3月统计”“去年1月统计”等
     m1 = re.match(r"^(去年|[12]?\d{3,4}年)?(\d{1,2})?月?统计$", text)
     m2 = re.match(r"^上月统计$", text)
+    m_year = re.match(r"^(今年|去年|[12]?\d{3,4}年)统计$", text)
     if m2:
         if month == 1:
             year -= 1
             month = 12
         else:
             month -= 1
+        # 月统计
+        month_str = f"{year}-{month:02d}"
+        where = f"strftime('%Y-%m', date) = '{month_str}'"
+        label = f"{month_str}统计"
     elif m1:
         y, m = m1.group(1), m1.group(2)
         if y:
@@ -175,24 +180,42 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 year = int(re.sub(r"年", "", y))
         if m:
             month = int(m)
-    # 生成查询字符串
-    month_str = f"{year}-{month:02d}"
+        # 月统计
+        month_str = f"{year}-{month:02d}"
+        where = f"strftime('%Y-%m', date) = '{month_str}'"
+        label = f"{month_str}统计"
+    elif m_year:
+        y = m_year.group(1)
+        if y == "今年":
+            year = today.year
+        elif y == "去年":
+            year = today.year - 1
+        else:
+            year = int(re.sub(r"年", "", y))
+        # 年统计
+        where = f"strftime('%Y', date) = '{year}'"
+        label = f"{year}年统计"
+    else:
+        await update.message.reply_text("您的输入有误。5秒后自动返回待命状态。")
+        await asyncio.sleep(5)
+        reset_state(user_id)
+        return
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     # 分类统计支出
-    c.execute("SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? GROUP BY category", (str(user_id), month_str))
+    c.execute(f"SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND {where} GROUP BY category", (str(user_id),))
     expense_rows = c.fetchall()
     # 分类统计收入
-    c.execute("SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? GROUP BY category", (str(user_id), month_str))
+    c.execute(f"SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND {where} GROUP BY category", (str(user_id),))
     income_rows = c.fetchall()
     # 总支出
-    c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?", (str(user_id), month_str))
+    c.execute(f"SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND {where}", (str(user_id),))
     total_expense = c.fetchone()[0] or 0.0
     # 总收入
-    c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=?", (str(user_id), month_str))
+    c.execute(f"SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND {where}", (str(user_id),))
     total_income = c.fetchone()[0] or 0.0
     conn.close()
-    msg = f"{month_str}统计\n"
+    msg = f"{label}\n"
     msg += "\n【支出分类】\n"
     if expense_rows:
         for cat, amt in expense_rows:
