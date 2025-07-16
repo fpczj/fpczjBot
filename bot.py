@@ -1884,18 +1884,19 @@ async def quick_keyword_query(update, user_id, text):
     return False
 
 async def handle_message(update, context):
-    if state == 'QUERY_DATE_CUSTOM':
-        # 用户自定义日期输入
-        user_id = update.effective_user.id
-        user_state[user_id] = QUERY_DATE
-        await handle_query_date(update, context)
-        set_timeout(user_id)
-        return
+
     user_id = update.effective_user.id
     username = update.effective_user.username
     chat_type = update.message.chat.type
     state = user_state.get(user_id, WAITING)
     text = update.message.text.strip()
+
+    if state == 'QUERY_DATE_CUSTOM':
+        # 用户自定义日期输入
+        user_state[user_id] = QUERY_DATE
+        await handle_query_date(update, context)
+        set_timeout(user_id)
+        return
 
     # 私聊：管理员除“授权”外全部允许
     if chat_type == "private":
