@@ -1701,6 +1701,26 @@ async def quick_keyword_query(update, user_id, text):
     return False
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # 限制私聊权限：只有管理员可与机器人私聊，非管理员私聊时直接忽略
+    chat = update.effective_chat
+    user_id = update.effective_user.id
+    if chat.type == "private" and not is_admin(user_id):
+        return  # 非管理员私聊直接忽略
+    # 禁止任何人在私聊中进行授权相关操作
+    chat = update.effective_chat
+    user_id = update.effective_user.id
+    if chat.type == "private":
+        return
+    # 禁止任何人在私聊中进行授权相关操作
+    chat = update.effective_chat
+    user_id = update.effective_user.id
+    if chat.type == "private":
+        return
+    # 禁止任何人在私聊中进行授权相关操作
+    chat = update.effective_chat
+    user_id = update.effective_user.id
+    if chat.type == "private":
+        return
     user_id = update.effective_user.id
     username = update.effective_user.username
     chat_type = update.message.chat.type
