@@ -109,7 +109,7 @@ async def typo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id) and not text.startswith("授权"):
             return
-        if not (is_admin(user_id) or is_authorized(user_id)):
+        if not (is_admin(user_id) or is_authorized(user_id, chat.id)):
             return
     text = update.message.text.strip()
     global typo_dict
@@ -155,7 +155,7 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id):
             return
-        if not is_authorized(user_id):
+        if not is_authorized(user_id, chat.id):
             return
     global user_last_bill_id
     if user_id not in user_last_bill_id:
@@ -180,9 +180,9 @@ async def suggest_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id):
             return
-        if not is_authorized(user_id):
+        if not is_authorized(user_id, chat.id):
             return
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, chat.id):
         return
     global user_common_desc
     descs = sorted(user_common_desc.get(user_id, {}).items(), key=lambda x: -x[1])[:5]
@@ -198,7 +198,7 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 只有管理员可以私聊
     if chat.type == "private" and not is_admin(user_id):
         return
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, chat.id):
         return
     text = update.message.text.strip()
     # 智能解析时间
@@ -567,10 +567,10 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id):
             return
-        if not is_authorized(user_id):
+        if not is_authorized(user_id, chat.id):
             return
     else:
-        if not (is_admin(user_id) or is_authorized(user_id)):
+        if not (is_admin(user_id) or is_authorized(user_id, chat.id)):
             return
     help_text = (
         "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
@@ -583,7 +583,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def bill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, update.effective_chat.id):
         return
     await update.message.reply_text("您要查询的是收入账单还是支出账单？1“收入” 2“支出”")
     user_state[user_id] = BILL_TYPE
@@ -647,7 +647,7 @@ async def handle_bill_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def report_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, update.effective_chat.id):
         return
     await update.message.reply_text("请输入月份：")
     user_state[user_id] = REPORT_MONTH
@@ -687,7 +687,7 @@ async def handle_report_month(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def clear_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, update.effective_chat.id):
         return
     await update.message.reply_text("清除全部还是今天的记录？（请回复“1 全部”或“2 今天”）")
     user_state[user_id] = CLEAR_TYPE
@@ -724,7 +724,7 @@ async def handle_clear_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def query_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, update.effective_chat.id):
         return
     await update.message.reply_text("您要查询收入还是支出？\n1 收入 2 支出")
     user_state[user_id] = QUERY_TYPE
@@ -900,7 +900,7 @@ async def handle_query_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def return_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, update.effective_chat.id):
         return
     await update.message.reply_text("已返回到待命状态。")
     reset_state(user_id)
@@ -1007,7 +1007,7 @@ async def handle_unauth_user(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def income_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, update.effective_chat.id):
         return
     text = update.message.text.strip()
     if "支出" in text:
