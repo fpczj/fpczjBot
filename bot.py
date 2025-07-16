@@ -1343,7 +1343,8 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
     user_id = update.effective_user.id
     text = update.message.text.strip()
     global user_last_record
-    if not is_admin_or_authorized(user_id):
+    chat_id = update.effective_chat.id
+    if not is_admin_or_authorized(user_id, chat_id):
         return False
     # 避免与其他格式冲突
     if text.startswith("收入") or re.match(r'^[+-]\d', text):
