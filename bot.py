@@ -1227,7 +1227,8 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
     conn.close()
     def fmt_amt(val):
         return f"{val:.2f}"
-    msg = f"记录成功：{fmt_amt(amount)}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
+    amt_str = f"{amount:.2f}" if amount >= 0 else f"-{abs(amount):.2f}"
+    msg = f"记录成功：{amt_str}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
     start_num = len(all_rows) - len(rows) + 1
     for i, row in enumerate(rows, start_num):
         amt = row[0]
