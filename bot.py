@@ -1154,6 +1154,14 @@ def parse_natural_language_record(text):
         text = text.replace("前天", "", 1).strip()
     else:
         record_date = None
+
+    # 智能判定类型：含“卖”优先判定为收入，含“买”且无“卖”判定为支出
+    def guess_type(desc):
+        if "卖" in desc:
+            return "income"
+        if "买" in desc:
+            return "expense"
+        return "expense"
     # 2. 支持“2025-6-3 购物 200”/“2025/6/3 购物 200”
     m_full = _re.match(r"^([12][0-9]{3})[年/-]([0-9]{1,2})[月/-]([0-9]{1,2})[日号]?\s*(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
     if m_full:
@@ -1195,8 +1203,9 @@ def parse_natural_language_record(text):
         if m:
             desc = m.group(1).strip()
             amount = float(m.group(2))
+            type_ = guess_type(desc)
             return {
-                "type": "expense",
+                "type": type_,
                 "amount": amount,
                 "category": get_category(desc),
                 "description": desc,
@@ -1207,8 +1216,9 @@ def parse_natural_language_record(text):
         if m2:
             amount = float(m2.group(1))
             desc = m2.group(2).strip()
+            type_ = guess_type(desc)
             return {
-                "type": "expense",
+                "type": type_,
                 "amount": amount,
                 "category": get_category(desc),
                 "description": desc,
@@ -1398,6 +1408,7 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
     global user_last_record, user_common_desc, user_last_bill_id
     user_id = update.effective_user.id
     # 只允许 owner 继续操作
+    global user_last_record, user_common_desc, user_last_bill_id
     import logging
     logger = logging.getLogger("nl_record_trace")
     if user_state.get(user_id) != PENDING_NL_RECORD or user_owner.get(user_id) != user_id:
