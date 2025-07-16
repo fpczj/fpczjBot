@@ -1,4 +1,6 @@
-from telegram.ext import CallbackQueryHandler
+# --- 修正导入顺序，确保类型可用 ---
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CallbackQueryHandler, ContextTypes
 # 清空账单按钮回调处理
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 授权管理按钮
