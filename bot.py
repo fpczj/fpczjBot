@@ -247,8 +247,7 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         where = f"strftime('%Y', date) = '{year}'"
         label = f"{year}年统计"
     else:
-        await update.message.reply_text("您的输入有误。5秒后自动返回待命状态。")
-        await asyncio.sleep(5)
+        await update.message.reply_text("您的输入有误。（机器人立刻返回待命状态）")
         reset_state(user_id)
         return
     conn = sqlite3.connect(DB_PATH)
@@ -1099,9 +1098,6 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
 # 智能自然语言记账解析
 
 def parse_natural_language_record(text):
-    import logging
-    logger = logging.getLogger("nl_record_trace")
-    logger.warning(f"[NL-TRACE] 输入: {text}")
     # 错别字/拼音映射（内置+用户自定义）
     typo_map = {
         'maicai': '买菜', 'mai cai': '买菜', 'zhifubao': '支付宝', 'zfb': '支付宝',
@@ -1157,14 +1153,6 @@ def parse_natural_language_record(text):
         text = text.replace("前天", "", 1).strip()
     else:
         record_date = None
-
-    # 智能判定类型：含“卖”优先判定为收入，含“买”且无“卖”判定为支出
-    def guess_type(desc):
-        if "卖" in desc:
-            return "income"
-        if "买" in desc:
-            return "expense"
-        return "expense"
     # 2. 支持“2025-6-3 购物 200”/“2025/6/3 购物 200”
     m_full = _re.match(r"^([12][0-9]{3})[年/-]([0-9]{1,2})[月/-]([0-9]{1,2})[日号]?\s*(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
     if m_full:
@@ -1174,10 +1162,14 @@ def parse_natural_language_record(text):
         desc = m_full.group(4).strip()
         amount = float(m_full.group(5))
         record_date = date(year, month, day)
-        type_ = guess_type(desc)
-        logger.warning(f"[NL-TRACE] 年月日 rec: desc={desc} type={type_}")
+        if '卖' in desc:
+            rtype = 'income'
+        elif '买' in desc:
+            rtype = 'expense'
+        else:
+            rtype = 'expense'
         return {
-            "type": type_,
+            "type": rtype,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
@@ -1194,40 +1186,33 @@ def parse_natural_language_record(text):
         if month > _today.month:
             year -= 1
         record_date = date(year, month, day)
-        type_ = guess_type(desc)
-        logger.warning(f"[NL-TRACE] 月日 rec: desc={desc} type={type_}")
+        if '卖' in desc:
+            rtype = 'income'
+        elif '买' in desc:
+            rtype = 'expense'
+        else:
+            rtype = 'expense'
         return {
-            "type": type_,
+            "type": rtype,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
             "date": record_date.strftime('%Y-%m-%d')
         }
-    # 4. 支持“昨天 任意描述 金额”“前天 任意描述 金额”，金额和描述更宽松
+    # 4. 支持“昨天 购物 200”“前天 购物 200”
     if record_date is not None:
-        # 允许描述和金额之间有多个空格或其他分隔符
-        m = _re.match(r"(.+?)\s*([+-]?[0-9]+(?:\.[0-9]+)?)$", text)
+        m = _re.match(r"(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
         if m:
             desc = m.group(1).strip()
             amount = float(m.group(2))
-            type_ = guess_type(desc)
-            logger.warning(f"[NL-TRACE] 昨天/前天 rec: desc={desc} type={type_}")
+            if '卖' in desc:
+                rtype = 'income'
+            elif '买' in desc:
+                rtype = 'expense'
+            else:
+                rtype = 'expense'
             return {
-                "type": type_,
-                "amount": amount,
-                "category": get_category(desc),
-                "description": desc,
-                "date": record_date.strftime('%Y-%m-%d')
-            }
-        # 兼容“昨天 金额 描述”
-        m2 = _re.match(r"^([+-]?[0-9]+(?:\.[0-9]+)?)\s*(.+)$", text)
-        if m2:
-            amount = float(m2.group(1))
-            desc = m2.group(2).strip()
-            type_ = guess_type(desc)
-            logger.warning(f"[NL-TRACE] 昨天/前天 rec: desc={desc} type={type_}")
-            return {
-                "type": type_,
+                "type": rtype,
                 "amount": amount,
                 "category": get_category(desc),
                 "description": desc,
@@ -1240,10 +1225,14 @@ def parse_natural_language_record(text):
     if m1:
         desc = m1.group(1).strip()
         amount = float(m1.group(2))
-        type_ = guess_type(desc)
-        logger.warning(f"[NL-TRACE] 今日 rec: desc={desc} type={type_}")
+        if '卖' in desc:
+            rtype = 'income'
+        elif '买' in desc:
+            rtype = 'expense'
+        else:
+            rtype = 'expense'
         return {
-            "type": type_,
+            "type": rtype,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
@@ -1252,10 +1241,14 @@ def parse_natural_language_record(text):
     if m2:
         amount = float(m2.group(1))
         desc = m2.group(2).strip()
-        type_ = guess_type(desc)
-        logger.warning(f"[NL-TRACE] 今日 rec: desc={desc} type={type_}")
+        if '卖' in desc:
+            rtype = 'income'
+        elif '买' in desc:
+            rtype = 'expense'
+        else:
+            rtype = 'expense'
         return {
-            "type": type_,
+            "type": rtype,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
@@ -1364,9 +1357,9 @@ def parse_keyword_query(text):
 
 async def try_natural_language_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     text = update.message.text.strip()
     global user_last_record
-    chat_id = update.effective_chat.id
     if not is_admin_or_authorized(user_id, chat_id):
         return False
     # 避免与其他格式冲突
@@ -1374,11 +1367,8 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
         return False
     # 语义增强：同上/上次补全
     # 口语化表达：再来一条/帮我记一笔/再记一次
-    import logging
-    logger = logging.getLogger("nl_record_trace")
     if text in ["同上", "上次"] and user_id in user_last_record:
         rec = copy.deepcopy(user_last_record[user_id])
-        logger.warning(f"[NL-TRACE] 同上/上次 rec: {rec}")
         if rec:
             user_temp[user_id] = {"nl_record": rec}
             user_state[user_id] = PENDING_NL_RECORD
@@ -1391,7 +1381,6 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
         return False
     if text in ["再来一条", "再记一次", "帮我记一笔"] and user_id in user_last_record:
         rec = copy.deepcopy(user_last_record[user_id])
-        logger.warning(f"[NL-TRACE] 口语化 rec: {rec}")
         if rec:
             user_temp[user_id] = {"nl_record": rec}
             user_state[user_id] = PENDING_NL_RECORD
@@ -1404,7 +1393,6 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
         return False
     # 使用优化后的解析
     rec = parse_natural_language_record(text)
-    logger.warning(f"[NL-TRACE] 解析 rec: {rec}")
     if rec:
         user_temp[user_id] = {"nl_record": rec}
         user_state[user_id] = PENDING_NL_RECORD
@@ -1418,20 +1406,20 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
 
 import asyncio
 async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global user_last_record, user_common_desc, user_last_bill_id
-    user_id = update.effective_user.id
-    # 只允许 owner 继续操作
-    global user_last_record, user_common_desc, user_last_bill_id
+    global user_last_record, user_common_desc, user_last_bill_id, user_state, user_owner, user_temp
     import logging
     logger = logging.getLogger("nl_record_trace")
+    user_id = update.effective_user.id
+    logger.warning(f"[CONFIRM] user_id={user_id} state={user_state.get(user_id)} owner={user_owner.get(user_id)} text={getattr(update.message, 'text', None)}")
+    # 只允许 owner 继续操作
     if user_state.get(user_id) != PENDING_NL_RECORD or user_owner.get(user_id) != user_id:
-        logger.warning(f"[NL-TRACE] 状态异常 user_id={user_id} state={user_state.get(user_id)} owner={user_owner.get(user_id)}")
+        logger.warning(f"[CONFIRM] 拒绝: user_id={user_id} state={user_state.get(user_id)} owner={user_owner.get(user_id)}")
         return
     text = update.message.text.strip()
     if text == "1":
-        rec = user_temp[user_id].get("nl_record")
-        logger.warning(f"[NL-TRACE] 确认 rec: {rec}")
+        rec = user_temp.get(user_id, {}).get("nl_record")
         if not rec:
+            logger.warning(f"[CONFIRM] nl_record丢失: user_id={user_id} user_temp={user_temp.get(user_id)}")
             await update.message.reply_text("数据异常，未能记账。5秒后自动返回待命状态。")
             await asyncio.sleep(5)
             reset_state(user_id)
@@ -1453,19 +1441,15 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
         user_last_bill_id[user_id] = bill_id
         conn.commit()
         conn.close()
-        logger.warning(f"[NL-TRACE] 入库 rec: {rec}")
         await reply_record_success(update, user_id, rec["type"], rec["amount"], rec["description"], rec["date"])
         # 记账回复后即刻回到待命状态，无需等待
         reset_state(user_id)
         return
     if text == "2":
-        logger.warning(f"[NL-TRACE] 用户取消 user_id={user_id}")
-        await update.message.reply_text("已取消。")
+        await update.message.reply_text("您已取消记账。机器人已返回待命状态。")
         reset_state(user_id)
         return
-    logger.warning(f"[NL-TRACE] 输入有误 user_id={user_id} text={text}")
-    await update.message.reply_text("您的输入有误。5秒后自动返回待命状态。")
-    await asyncio.sleep(5)
+    await update.message.reply_text("您的输入有误。（机器人立刻返回待命状态）")
     reset_state(user_id)
     return
     def parse_date_range(s):
@@ -1554,8 +1538,8 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
 
 async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
     username = update.effective_user.username
+    chat_id = update.effective_chat.id
     if not is_admin_or_authorized(user_id, chat_id):
         return False
     if username:
@@ -1565,17 +1549,23 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
             users[at_name] = str(user_id)
             save_users(users)
     text = update.message.text.strip()
-    # 直接记账，无需确认
-    m = re.match(r"^收入\s+([+-]?[0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?", text)
+    # 仅支持如下两种格式自动记账，其它全部忽略：
+    # 1. 收入 金额 或 收入 金额 描述
+    m = re.match(r"^收入\s+([+-]?\d+(?:\.\d+)?)(?:\s+(.+))?$", text)
     if m:
         amount = float(m.group(1))
-        desc = m.group(2) if m.group(2) else "未填写"
+        desc = m.group(2)
+        if not desc or not desc.strip():
+            await update.message.reply_text("请输入描述，格式：收入 金额 描述。机器人已返回待命状态。")
+            reset_state(user_id)
+            return True
         today = date.today().strftime("%Y-%m-%d")
-        bill_db.insert_bill(user_id, 'income', amount, '其他', desc, today)
-        await reply_record_success(update, user_id, "income", amount, desc, today)
+        bill_db.insert_bill(user_id, 'income', amount, '其他', desc.strip(), today)
+        await reply_record_success(update, user_id, "income", amount, desc.strip(), today)
         reset_state(user_id)
         return True
-    m = re.match(r"^([+-]?[0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
+    # 2. +金额 描述 或 -金额 描述（支出）
+    m = re.match(r"^([+-]\d+(?:\.\d+)?)\s+(.+)$", text)
     if m:
         amount = float(m.group(1))
         desc = m.group(2)
@@ -1585,13 +1575,214 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_record_success(update, user_id, type_, amount, desc, today)
         reset_state(user_id)
         return True
-    return False  # 防止其他格式如纯数字触发
+    # 其它任何描述都不认为是收入/支出指令
+    return False
 
 async def quick_keyword_query(update, user_id, text):
     today = date.today()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     msg = ""
+    import re as _re
+    # 7月/8月/12月等，自动查询今年该月，呈现所有明细和汇总
+    m = _re.match(r"^(\d{1,2})月(收入|支出)?$", text)
+    if m:
+        month = int(m.group(1))
+        qtype = None
+        if m.group(2) == "收入":
+            qtype = "income"
+        elif m.group(2) == "支出":
+            qtype = "expense"
+        year = date.today().year
+        qmonth = f"{year}-{month:02d}"
+        msg = ""
+        if qtype:
+            c.execute(
+                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                (str(user_id), qtype, qmonth)
+            )
+            rows = c.fetchall()
+            c.execute(
+                "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
+                (str(user_id), qtype, qmonth)
+            )
+            total = c.fetchone()[0] or 0.0
+            msg += f"{year}年{month}月{qtype}明细：\n"
+            for i, row in enumerate(rows, 1):
+                msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            msg += f"{year}年{month}月总{qtype}：{total:.2f}"
+        else:
+            # 收入
+            c.execute(
+                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                (str(user_id), qmonth)
+            )
+            rows = c.fetchall()
+            c.execute(
+                "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=?",
+                (str(user_id), qmonth)
+            )
+            total_income = c.fetchone()[0] or 0.0
+            msg += f"{year}年{month}月收入明细：\n"
+            for i, row in enumerate(rows, 1):
+                msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            msg += f"{year}年{month}月总收入：{total_income:.2f}\n"
+            # 支出
+            c.execute(
+                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                (str(user_id), qmonth)
+            )
+            rows = c.fetchall()
+            c.execute(
+                "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?",
+                (str(user_id), qmonth)
+            )
+            total_expense = c.fetchone()[0] or 0.0
+            msg += f"{year}年{month}月支出明细：\n"
+            for i, row in enumerate(rows, 1):
+                msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            msg += f"{year}年{month}月总支出：{total_expense:.2f}"
+        conn.close()
+        if msg:
+            await update.message.reply_text(msg)
+            return True
+        return False
+
+    # 去年/去年X月等，或任意超过31天的区间，只呈现分类汇总
+    m = _re.match(r"^去年(\d{1,2})?月?(收入|支出)?$", text)
+    if m:
+        year = date.today().year - 1
+        month = m.group(1)
+        qtype = None
+        if m.group(2) == "收入":
+            qtype = "income"
+        elif m.group(2) == "支出":
+            qtype = "expense"
+        msg = ""
+        if month:
+            qmonth = f"{year}-{int(month):02d}"
+            # 该月区间天数
+            from calendar import monthrange
+            days_in_month = monthrange(year, int(month))[1]
+            if days_in_month <= 31:
+                # 仍然视为月份查询，展示明细和汇总
+                if qtype:
+                    c.execute(
+                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                        (str(user_id), qtype, qmonth)
+                    )
+                    rows = c.fetchall()
+                    c.execute(
+                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
+                        (str(user_id), qtype, qmonth)
+                    )
+                    total = c.fetchone()[0] or 0.0
+                    msg += f"{year}年{int(month)}月{qtype}明细：\n"
+                    for i, row in enumerate(rows, 1):
+                        msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+                    msg += f"{year}年{int(month)}月总{qtype}：{total:.2f}"
+                else:
+                    # 收入
+                    c.execute(
+                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                        (str(user_id), qmonth)
+                    )
+                    rows = c.fetchall()
+                    c.execute(
+                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=?",
+                        (str(user_id), qmonth)
+                    )
+                    total_income = c.fetchone()[0] or 0.0
+                    msg += f"{year}年{int(month)}月收入明细：\n"
+                    for i, row in enumerate(rows, 1):
+                        msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+                    msg += f"{year}年{int(month)}月总收入：{total_income:.2f}\n"
+                    # 支出
+                    c.execute(
+                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                        (str(user_id), qmonth)
+                    )
+                    rows = c.fetchall()
+                    c.execute(
+                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?",
+                        (str(user_id), qmonth)
+                    )
+                    total_expense = c.fetchone()[0] or 0.0
+                    msg += f"{year}年{int(month)}月支出明细：\n"
+                    for i, row in enumerate(rows, 1):
+                        msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+                    msg += f"{year}年{int(month)}月总支出：{total_expense:.2f}"
+                conn.close()
+                if msg:
+                    await update.message.reply_text(msg)
+                    return True
+                return False
+            # 超过31天，分类汇总
+            if qtype:
+                c.execute(
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), qtype, qmonth)
+                )
+                rows = c.fetchall()
+                msg += f"{year}年{int(month)}月{qtype}分类汇总：\n"
+                for i, row in enumerate(rows, 1):
+                    msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
+            else:
+                # 收入
+                c.execute(
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), qmonth)
+                )
+                rows = c.fetchall()
+                msg += f"{year}年{int(month)}月收入分类汇总：\n"
+                for i, row in enumerate(rows, 1):
+                    msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
+                # 支出
+                c.execute(
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), qmonth)
+                )
+                rows = c.fetchall()
+                msg += f"{year}年{int(month)}月支出分类汇总：\n"
+                for i, row in enumerate(rows, 1):
+                    msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
+        else:
+            # 去年全年等，直接分类汇总
+            if qtype:
+                c.execute(
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), qtype, str(year))
+                )
+                rows = c.fetchall()
+                msg += f"{year}年{qtype}分类汇总：\n"
+                for i, row in enumerate(rows, 1):
+                    msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
+            else:
+                # 收入
+                c.execute(
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(year))
+                )
+                rows = c.fetchall()
+                msg += f"{year}年收入分类汇总：\n"
+                for i, row in enumerate(rows, 1):
+                    msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
+                # 支出
+                c.execute(
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(year))
+                )
+                rows = c.fetchall()
+                msg += f"{year}年支出分类汇总：\n"
+                for i, row in enumerate(rows, 1):
+                    msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
+        conn.close()
+        if msg:
+            await update.message.reply_text(msg)
+            return True
+        return False
+
+    # 原有关键词匹配
     if text in ["今天收入", "今日收入"]:
         qtype = "income"
         qdate = today.strftime("%Y-%m-%d")
@@ -1701,26 +1892,11 @@ async def quick_keyword_query(update, user_id, text):
     return False
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # 限制私聊权限：只有管理员可与机器人私聊，非管理员私聊时直接忽略
-    chat = update.effective_chat
+    import logging
+    logger = logging.getLogger("nl_record_trace")
     user_id = update.effective_user.id
-    if chat.type == "private" and not is_admin(user_id):
-        return  # 非管理员私聊直接忽略
-    # 禁止任何人在私聊中进行授权相关操作
     chat = update.effective_chat
-    user_id = update.effective_user.id
-    if chat.type == "private":
-        return
-    # 禁止任何人在私聊中进行授权相关操作
-    chat = update.effective_chat
-    user_id = update.effective_user.id
-    if chat.type == "private":
-        return
-    # 禁止任何人在私聊中进行授权相关操作
-    chat = update.effective_chat
-    user_id = update.effective_user.id
-    if chat.type == "private":
-        return
+    logger.warning(f"[MSG] user_id={user_id} chat_id={chat.id} state={user_state.get(user_id)} text={getattr(update.message, 'text', None)}")
     user_id = update.effective_user.id
     username = update.effective_user.username
     chat_type = update.message.chat.type
@@ -1870,10 +2046,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == "收入" or text == "支出":
             await income_cmd(update, context)
             return
-        # 直接记账或自然语言
+        # 只支持传统命令记账，彻底关闭智能自然语言记账
         if not await handle_record(update, context):
-            if not await try_natural_language_record(update, context):
-                return
+            return
         return
     elif state == BILL_TYPE:
         await handle_bill_type(update, context)
@@ -1906,11 +2081,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_income_month(update, context)
         set_timeout(user_id)
     elif state == PENDING_NL_RECORD:
+        logger.warning(f"[MSG] 进入PENDING_NL_RECORD确认流程 user_id={user_id} text={getattr(update.message, 'text', None)}")
         await handle_nl_record_confirm(update, context)
         # 不再 set_timeout，让 handle_nl_record_confirm 自己控制
         return
     else:
         reset_state(user_id)
+        logger.warning(f"[CONFIRM] ...已reset user_id={user_id}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1918,6 +2095,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await show_menu(update)
     reset_state(user_id)
+    logger.warning(f"[CONFIRM] ...已reset user_id={user_id}")
 
 def main():
     application = Application.builder().token(TOKEN).build()
