@@ -1683,11 +1683,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
     else:
         # 群组
+        chat = update.effective_chat
         if is_admin(user_id):
             # 群组内管理员仅能授权
             if state == WAITING and text != "授权":
                 return
-        elif is_authorized(user_id):
+        elif is_authorized(user_id, chat.id):
             # 群组内被授权人除“授权”外全部允许
             if state == WAITING and text == "授权":
                 return
