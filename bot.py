@@ -1466,28 +1466,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = user_state.get(user_id, WAITING)
     text = update.message.text.strip()
 
-    # 私聊：管理员除“授权”外拥有所有权限，被授权人全部允许
+    # 私聊：管理员除“授权”外全部允许
     if chat_type == "private":
         if is_admin(user_id):
             if state == WAITING and text == "授权":
                 return  # 管理员私聊禁止“授权”
             # 其它全部允许
-        elif not is_authorized(user_id):
+        else:
+            # 非管理员私聊无权限
             return
-        # 被授权人全部允许
     else:
         # 群组
         if is_admin(user_id):
-            # 只在待命状态下限制只能输入“授权”
+            # 群组内管理员仅能授权
             if state == WAITING and text != "授权":
                 return
         elif is_authorized(user_id):
-            # 被授权人只在待命状态下禁止“授权”指令，其它全部允许
+            # 群组内被授权人除“授权”外全部允许
             if state == WAITING and text == "授权":
                 return
-            # 其它指令全部允许，继续往下走
+            # 其它指令全部允许
         else:
-            # 非授权人/非管理员无任何权限
+            # 群组内未授权人无任何权限
             return
     set_timeout(user_id)  # 每次操作重置超时
 
