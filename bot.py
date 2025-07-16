@@ -1733,6 +1733,7 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_users(users)
     text = update.message.text.strip()
     # 直接记账，无需确认
+    # 收入 金额 或 收入 金额 描述
     m = re.match(r"^收入\s+([0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?", text)
     if m:
         amount = float(m.group(1))
@@ -1750,8 +1751,10 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_record_success(update, user_id, "income", amount, desc, today)
         reset_state(user_id)
         return True
+    # +金额 描述 或 -金额 描述 记为支出，金额均为正
     m = re.match(r"^([+-])([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
     if m:
+        sign = m.group(1)
         amount = float(m.group(2))
         desc = m.group(3)
         today = date.today().strftime("%Y-%m-%d")
