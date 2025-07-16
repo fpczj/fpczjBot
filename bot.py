@@ -1194,7 +1194,7 @@ async def handle_income_month(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         msg = f"{month}月{type_str}明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            msg += f"{i} | {abs(row[0]):.2f} | {row[1]} | {row[2]} | {row[3]}\n"
         msg += f"{month}月总{type_str}：{total:.2f}"
         await update.message.reply_text(msg)
     reset_state(user_id)
@@ -1808,7 +1808,7 @@ async def quick_keyword_query(update, user_id, text):
         msg = f"今天支出明细：\n"
         for i, row in enumerate(rows, 1):
             msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-        msg += f"今天总支出：{total:.2f}"
+        msg += f"今天总支出：{abs(total):.2f}"
     elif text in ["本月收入"]:
         qtype = "income"
         qmonth = today.strftime("%Y-%m")
@@ -1842,7 +1842,7 @@ async def quick_keyword_query(update, user_id, text):
         msg = f"本月支出明细：\n"
         for i, row in enumerate(rows, 1):
             msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-        msg += f"本月总支出：{total:.2f}"
+        msg += f"本月总支出：{abs(total):.2f}"
     elif text in ["上月收入"]:
         qtype = "income"
         last_month = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
@@ -1876,7 +1876,7 @@ async def quick_keyword_query(update, user_id, text):
         msg = f"上月支出明细：\n"
         for i, row in enumerate(rows, 1):
             msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-        msg += f"上月总支出：{total:.2f}"
+        msg += f"上月总支出：{abs(total):.2f}"
     conn.close()
     if msg:
         await update.message.reply_text(msg)
