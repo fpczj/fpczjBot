@@ -20,11 +20,17 @@ import copy
 def load_config():
     if not os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump({"admins": [], "authorized": [], "auth_expire": {}}, f, ensure_ascii=False, indent=2)
-        return {"admins": [], "authorized": [], "auth_expire": {}}
+            json.dump({"admins": [], "authorized": {}, "auth_expire": {}}, f, ensure_ascii=False, indent=2)
+        return {"admins": [], "authorized": {}, "auth_expire": {}}
     else:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # 兼容旧结构
+            if "authorized" in data and isinstance(data["authorized"], list):
+                data["authorized"] = {}
+            if "auth_expire" not in data:
+                data["auth_expire"] = {}
+            return data
 
 def save_config(config):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -96,14 +102,13 @@ def save_users(users):
 async def typo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat = update.effective_chat
+    # 只有管理员可以私聊
+    if chat.type == "private" and not is_admin(user_id):
+        return
     # 群组内管理员仅能授权
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id) and not text.startswith("授权"):
             return
-        if not (is_admin(user_id) or is_authorized(user_id)):
-            return
-    else:
-        # 私聊：管理员和授权用户均可
         if not (is_admin(user_id) or is_authorized(user_id)):
             return
     text = update.message.text.strip()
@@ -144,13 +149,13 @@ async def typo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat = update.effective_chat
+    # 只有管理员可以私聊
+    if chat.type == "private" and not is_admin(user_id):
+        return
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id):
             return
         if not is_authorized(user_id):
-            return
-    else:
-        if not (is_admin(user_id) or is_authorized(user_id)):
             return
     global user_last_bill_id
     if user_id not in user_last_bill_id:
@@ -169,16 +174,14 @@ async def undo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def suggest_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat = update.effective_chat
+    # 只有管理员可以私聊
+    if chat.type == "private" and not is_admin(user_id):
+        return
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id):
             return
         if not is_authorized(user_id):
             return
-    else:
-        if not (is_admin(user_id) or is_authorized(user_id)):
-            return
-
-    user_id = update.effective_user.id
     if not is_admin_or_authorized(user_id):
         return
     global user_common_desc
@@ -191,6 +194,10 @@ async def suggest_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 本月统计命令
 async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    chat = update.effective_chat
+    # 只有管理员可以私聊
+    if chat.type == "private" and not is_admin(user_id):
+        return
     if not is_admin_or_authorized(user_id):
         return
     text = update.message.text.strip()
@@ -288,6 +295,9 @@ WAITING, BILL_TYPE, BILL_MONTH, REPORT_MONTH, CLEAR_TYPE, AUTH_TYPE, AUTH_USER, 
 async def category_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat = update.effective_chat
+    # 只有管理员可以私聊
+    if chat.type == "private" and not is_admin(user_id):
+        return
     if chat.type in ["group", "supergroup"]:
         if is_admin(user_id):
             return
@@ -464,28 +474,46 @@ user_session = UserSession()
 TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
 
 def is_admin_or_authorized(user_id):
-    return str(user_id) in config["admins"] or str(user_id) in config["authorized"]
+    import inspect
+    frame = inspect.currentframe().f_back
+    chat_id = None
+    if 'chat' in frame.f_locals:
+        chat = frame.f_locals['chat']
+        chat_id = getattr(chat, 'id', None)
+    uid = str(user_id)
+    if uid in config["admins"]:
+        return True
+    if chat_id is not None:
+        chat_id = str(chat_id)
+        return chat_id in config["authorized"] and uid in config["authorized"][chat_id]
+    return False
 
 def is_admin(user_id):
     return str(user_id) in config["admins"]
 
 def is_authorized(user_id):
-    # 检查授权有效期
+    import inspect
+    frame = inspect.currentframe().f_back
+    chat_id = None
+    if 'chat' in frame.f_locals:
+        chat = frame.f_locals['chat']
+        chat_id = getattr(chat, 'id', None)
     uid = str(user_id)
-    if uid in config["authorized"]:
-        # 检查授权时间戳
-        if "auth_expire" in config and uid in config["auth_expire"]:
-            if time.time() < config["auth_expire"][uid]:
+    if chat_id is None:
+        return False
+    chat_id = str(chat_id)
+    if chat_id in config["authorized"] and uid in config["authorized"][chat_id]:
+        key = f"{chat_id}:{uid}"
+        if "auth_expire" in config and key in config["auth_expire"]:
+            if time.time() < config["auth_expire"][key]:
                 return True
             else:
-                # 过期自动移除
-                config["authorized"].remove(uid)
-                del config["auth_expire"][uid]
+                config["authorized"][chat_id].remove(uid)
+                del config["auth_expire"][key]
                 save_config(config)
                 return False
         else:
-            # 没有时间戳，视为无效
-            config["authorized"].remove(uid)
+            config["authorized"][chat_id].remove(uid)
             save_config(config)
             return False
     return False
