@@ -1188,12 +1188,25 @@ def parse_natural_language_record(text):
             "description": desc,
             "date": record_date.strftime('%Y-%m-%d')
         }
-    # 4. 支持“昨天 购物 200”“前天 购物 200”
+    # 4. 支持“昨天 任意描述 金额”“前天 任意描述 金额”，金额和描述更宽松
     if record_date is not None:
-        m = _re.match(r"(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+        # 允许描述和金额之间有多个空格或其他分隔符
+        m = _re.match(r"(.+?)\s*([+-]?[0-9]+(?:\.[0-9]+)?)$", text)
         if m:
             desc = m.group(1).strip()
             amount = float(m.group(2))
+            return {
+                "type": "expense",
+                "amount": amount,
+                "category": get_category(desc),
+                "description": desc,
+                "date": record_date.strftime('%Y-%m-%d')
+            }
+        # 兼容“昨天 金额 描述”
+        m2 = _re.match(r"^([+-]?[0-9]+(?:\.[0-9]+)?)\s*(.+)$", text)
+        if m2:
+            amount = float(m2.group(1))
+            desc = m2.group(2).strip()
             return {
                 "type": "expense",
                 "amount": amount,
@@ -1516,8 +1529,9 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
 
 async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     username = update.effective_user.username
-    if not is_admin_or_authorized(user_id):
+    if not is_admin_or_authorized(user_id, chat_id):
         return False
     if username:
         users = load_users()
