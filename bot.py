@@ -175,7 +175,7 @@ import os
 import sqlite3
 import re
 from datetime import date, timedelta
-from telegram import Update
+## (重复导入，移除)
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, JobQueue
 from telegram.ext import filters
 import threading
@@ -195,7 +195,7 @@ import os
 import sqlite3
 import re
 from datetime import date, timedelta
-from telegram import Update
+## (重复导入，移除)
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, JobQueue
 from telegram.ext import filters
 import threading
