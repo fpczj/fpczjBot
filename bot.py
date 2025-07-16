@@ -1937,11 +1937,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_users(users)
     text = update.message.text.strip()
 
-    # 只允许指令和自然语言记账
+    # 只允许严格格式命令和关键词查询，彻底关闭自然语言记账
     valid_cmds = ["账单", "报表", "清除", "查询", "返回", "授权", "收入", "帮助", "开始"]
     m_income = re.match(r"收入\s+([+-]?[0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?", text)
     m_expense = re.match(r"([+-]?[0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
-    is_valid_cmd = text in valid_cmds or m_income or m_expense
 
     if state == WAITING:
         if m_income:
@@ -1976,45 +1975,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if text.isdigit():
             return
-        query_info = parse_keyword_query(text)
-        if query_info:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            params = [str(user_id)]
-            sql = "SELECT amount, category, description, date FROM bills WHERE user_id=?"
-            if query_info['type']:
-                sql += " AND type=?"
-                params.append(query_info['type'])
-            if query_info['start_date'] and query_info['end_date']:
-                sql += " AND date BETWEEN ? AND ?"
-                params.append(query_info['start_date'].strftime('%Y-%m-%d'))
-                params.append(query_info['end_date'].strftime('%Y-%m-%d'))
-            if query_info['fuzzy_desc']:
-                sql += " AND description LIKE ?"
-                params.append(f"%{query_info['fuzzy_desc']}%")
-            sql += " ORDER BY date ASC"
-            c.execute(sql, tuple(params))
-            rows = c.fetchall()
-            c.execute(f"SELECT SUM(amount) FROM bills WHERE user_id=?" + (" AND type=?" if query_info['type'] else "") + (" AND date BETWEEN ? AND ?" if query_info['start_date'] and query_info['end_date'] else "") + (" AND description LIKE ?" if query_info['fuzzy_desc'] else ""), tuple(params))
-            total = c.fetchone()[0] or 0.0
-            conn.close()
-            msg = ""
-            if query_info['start_date'] and query_info['end_date']:
-                msg += f"{query_info['start_date'].strftime('%Y-%m-%d')}至{query_info['end_date'].strftime('%Y-%m-%d')}"
-            if query_info['type']:
-                msg += f"{'收入' if query_info['type']=='income' else '支出'}"
-            if query_info['fuzzy_desc']:
-                msg += f"（{query_info['fuzzy_desc']}）"
-            msg += f"总金额：{total:.2f}\n"
-            if rows:
-                msg += "明细：\n"
-                for i, row in enumerate(rows, 1):
-                    msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
-            else:
-                msg += "无明细记录。"
-            await update.message.reply_text(msg)
-            set_timeout(user_id)
-            return
+        # 只允许关键词查询和严格命令
         if await quick_keyword_query(update, user_id, text):
             set_timeout(user_id)
             return
@@ -2046,7 +2007,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == "收入" or text == "支出":
             await income_cmd(update, context)
             return
-        # 只支持传统命令记账，彻底关闭智能自然语言记账
+        # 只支持严格格式命令，彻底关闭自然语言记账
         if not await handle_record(update, context):
             return
         return
