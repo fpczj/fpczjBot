@@ -1099,6 +1099,9 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
 # 智能自然语言记账解析
 
 def parse_natural_language_record(text):
+    import logging
+    logger = logging.getLogger("nl_record_trace")
+    logger.warning(f"[NL-TRACE] 输入: {text}")
     # 错别字/拼音映射（内置+用户自定义）
     typo_map = {
         'maicai': '买菜', 'mai cai': '买菜', 'zhifubao': '支付宝', 'zfb': '支付宝',
@@ -1171,8 +1174,10 @@ def parse_natural_language_record(text):
         desc = m_full.group(4).strip()
         amount = float(m_full.group(5))
         record_date = date(year, month, day)
+        type_ = guess_type(desc)
+        logger.warning(f"[NL-TRACE] 年月日 rec: desc={desc} type={type_}")
         return {
-            "type": "expense",
+            "type": type_,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
@@ -1189,8 +1194,10 @@ def parse_natural_language_record(text):
         if month > _today.month:
             year -= 1
         record_date = date(year, month, day)
+        type_ = guess_type(desc)
+        logger.warning(f"[NL-TRACE] 月日 rec: desc={desc} type={type_}")
         return {
-            "type": "expense",
+            "type": type_,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
@@ -1204,6 +1211,7 @@ def parse_natural_language_record(text):
             desc = m.group(1).strip()
             amount = float(m.group(2))
             type_ = guess_type(desc)
+            logger.warning(f"[NL-TRACE] 昨天/前天 rec: desc={desc} type={type_}")
             return {
                 "type": type_,
                 "amount": amount,
@@ -1217,6 +1225,7 @@ def parse_natural_language_record(text):
             amount = float(m2.group(1))
             desc = m2.group(2).strip()
             type_ = guess_type(desc)
+            logger.warning(f"[NL-TRACE] 昨天/前天 rec: desc={desc} type={type_}")
             return {
                 "type": type_,
                 "amount": amount,
@@ -1231,8 +1240,10 @@ def parse_natural_language_record(text):
     if m1:
         desc = m1.group(1).strip()
         amount = float(m1.group(2))
+        type_ = guess_type(desc)
+        logger.warning(f"[NL-TRACE] 今日 rec: desc={desc} type={type_}")
         return {
-            "type": "expense",
+            "type": type_,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
@@ -1241,8 +1252,10 @@ def parse_natural_language_record(text):
     if m2:
         amount = float(m2.group(1))
         desc = m2.group(2).strip()
+        type_ = guess_type(desc)
+        logger.warning(f"[NL-TRACE] 今日 rec: desc={desc} type={type_}")
         return {
-            "type": "expense",
+            "type": type_,
             "amount": amount,
             "category": get_category(desc),
             "description": desc,
