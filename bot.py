@@ -55,6 +55,26 @@ try:
         config = json.load(f)
 except Exception:
     config = {"admins": [], "authorized": [], "auth_expire": {}}
+import logging
+import json
+import os
+import sqlite3
+import re
+from datetime import date, timedelta
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, JobQueue
+from telegram.ext import filters
+import threading
+import time
+import copy
+
+# config和save_config定义补充，防止未定义变量
+CONFIG_PATH = "config.json"
+try:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = json.load(f)
+except Exception:
+    config = {"admins": [], "authorized": [], "auth_expire": {}}
 
 def save_config(cfg):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
