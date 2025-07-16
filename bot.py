@@ -473,34 +473,18 @@ user_session = UserSession()
 
 TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
 
-def is_admin_or_authorized(user_id):
-    import inspect
-    frame = inspect.currentframe().f_back
-    chat_id = None
-    if 'chat' in frame.f_locals:
-        chat = frame.f_locals['chat']
-        chat_id = getattr(chat, 'id', None)
+def is_admin_or_authorized(user_id, chat_id):
     uid = str(user_id)
+    chat_id = str(chat_id)
     if uid in config["admins"]:
         return True
-    if chat_id is not None:
-        chat_id = str(chat_id)
-        return chat_id in config["authorized"] and uid in config["authorized"][chat_id]
-    return False
+    return chat_id in config["authorized"] and uid in config["authorized"][chat_id]
 
 def is_admin(user_id):
     return str(user_id) in config["admins"]
 
-def is_authorized(user_id):
-    import inspect
-    frame = inspect.currentframe().f_back
-    chat_id = None
-    if 'chat' in frame.f_locals:
-        chat = frame.f_locals['chat']
-        chat_id = getattr(chat, 'id', None)
+def is_authorized(user_id, chat_id):
     uid = str(user_id)
-    if chat_id is None:
-        return False
     chat_id = str(chat_id)
     if chat_id in config["authorized"] and uid in config["authorized"][chat_id]:
         key = f"{chat_id}:{uid}"
