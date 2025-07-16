@@ -1,4 +1,40 @@
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+import shutil
+import datetime
+# 日志记录（建议完善日志细节）
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s',
+    handlers=[logging.FileHandler('bot.log', encoding='utf-8'), logging.StreamHandler()]
+)
+# 数据库自动备份（每日/每周备份，建议用定时任务调用）
+def backup_database(backup_dir='backup'):
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    backup_file = os.path.join(backup_dir, f'bills_backup_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
+    shutil.copy(DB_PATH, backup_file)
+    return backup_file
+# 分类关键词映射（可根据实际需求扩展）
+CATEGORY_KEYWORDS = {
+    '餐饮': ['餐', '饭', '吃', '外卖', '早餐', '午餐', '晚餐', '买菜', '水果', '饮料', '奶茶', '零食'],
+    '交通': ['地铁', '公交', '打车', '滴滴', '高铁', '火车', '飞机', '加油', '停车'],
+    '购物': ['购物', '买', '淘宝', '京东', '拼多多', '超市', '商场', '衣服', '鞋', '包'],
+    '娱乐': ['电影', 'KTV', '游戏', '娱乐', '旅游', '门票', '演出'],
+    '居家': ['房租', '水电', '物业', '宽带', '家电', '家具', '装修'],
+    '医疗': ['医院', '药', '体检', '医疗', '保险'],
+    '学习': ['学费', '培训', '书', '学习', '考试'],
+    '通讯': ['话费', '流量', '手机', '宽带'],
+    '其他': ['红包', '礼物', '捐款', '其他'],
+}
 
+# 模糊分类自动归类函数
+def auto_categorize(desc: str) -> str:
+    for cat, keywords in CATEGORY_KEYWORDS.items():
+        for kw in keywords:
+            if kw in desc:
+                return cat
+    return '未分类'
 import logging
 import json
 import os
@@ -161,12 +197,17 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 支持“上月统计”“3月统计”“去年1月统计”等
     m1 = re.match(r"^(去年|[12]?\d{3,4}年)?(\d{1,2})?月?统计$", text)
     m2 = re.match(r"^上月统计$", text)
+    m_year = re.match(r"^(今年|去年|[12]?\d{3,4}年)统计$", text)
     if m2:
         if month == 1:
             year -= 1
             month = 12
         else:
             month -= 1
+        # 月统计
+        month_str = f"{year}-{month:02d}"
+        where = f"strftime('%Y-%m', date) = '{month_str}'"
+        label = f"{month_str}统计"
     elif m1:
         y, m = m1.group(1), m1.group(2)
         if y:
@@ -176,24 +217,42 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 year = int(re.sub(r"年", "", y))
         if m:
             month = int(m)
-    # 生成查询字符串
-    month_str = f"{year}-{month:02d}"
+        # 月统计
+        month_str = f"{year}-{month:02d}"
+        where = f"strftime('%Y-%m', date) = '{month_str}'"
+        label = f"{month_str}统计"
+    elif m_year:
+        y = m_year.group(1)
+        if y == "今年":
+            year = today.year
+        elif y == "去年":
+            year = today.year - 1
+        else:
+            year = int(re.sub(r"年", "", y))
+        # 年统计
+        where = f"strftime('%Y', date) = '{year}'"
+        label = f"{year}年统计"
+    else:
+        await update.message.reply_text("您的输入有误。5秒后自动返回待命状态。")
+        await asyncio.sleep(5)
+        reset_state(user_id)
+        return
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     # 分类统计支出
-    c.execute("SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? GROUP BY category", (str(user_id), month_str))
+    c.execute(f"SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND {where} GROUP BY category", (str(user_id),))
     expense_rows = c.fetchall()
     # 分类统计收入
-    c.execute("SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? GROUP BY category", (str(user_id), month_str))
+    c.execute(f"SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND {where} GROUP BY category", (str(user_id),))
     income_rows = c.fetchall()
     # 总支出
-    c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?", (str(user_id), month_str))
+    c.execute(f"SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND {where}", (str(user_id),))
     total_expense = c.fetchone()[0] or 0.0
     # 总收入
-    c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=?", (str(user_id), month_str))
+    c.execute(f"SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND {where}", (str(user_id),))
     total_income = c.fetchone()[0] or 0.0
     conn.close()
-    msg = f"{month_str}统计\n"
+    msg = f"{label}\n"
     msg += "\n【支出分类】\n"
     if expense_rows:
         for cat, amt in expense_rows:
@@ -312,7 +371,7 @@ def init_db():
 
 init_db()
 
-TOKEN = os.environ.get"7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
+TOKEN = "7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM"
 
 def is_admin_or_authorized(user_id):
     return str(user_id) in config["admins"] or str(user_id) in config["authorized"]
@@ -377,11 +436,10 @@ async def show_menu(update):
     menu = (
         "欢迎使用记账机器人！\n\n"
         "可用指令：\n"
-        "1.账单、报表、清除、查询、返回、授权、收入、帮助\n"
-        "2.直接输入“收入 金额”或“收入 金额 描述”为收入；\n"
-        "3.输入“+或-金额 描述”为支出。\n"
-        "4.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认。\n"
-        "5.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
+        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
+        "2.输入“+或-金额 描述”为支出;\n\n"
+        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认；\n\n"
+        "4.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
     )
     await update.message.reply_text(menu)
 
@@ -397,9 +455,9 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not (is_admin(user_id) or is_authorized(user_id)):
             return
     help_text = (
-        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n"
-        "2.输入“+或-金额 描述”为支出。\n"
-        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认。\n"
+        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
+        "2.输入“+或-金额 描述”为支出；\n\n"
+        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认；\n\n"
         "4.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
     )
     await update.message.reply_text(help_text)
@@ -530,14 +588,25 @@ async def handle_clear_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if text == "1":
-        c.execute("DELETE FROM bills WHERE user_id=?", (str(user_id),))
-        conn.commit()
-        await update.message.reply_text("您已清除所有记录。")
+        # 敏感操作二次确认
+        keyboard = [
+            [InlineKeyboardButton("确认清空所有记录", callback_data='confirm_clear_all'),
+             InlineKeyboardButton("取消", callback_data='cancel_clear')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("确定要清空所有账单吗？此操作不可恢复。", reply_markup=reply_markup)
+        conn.close()
+        return
     elif text == "2":
-        today = date.today().strftime("%Y-%m-%d")
-        c.execute("DELETE FROM bills WHERE user_id=? AND date=?", (str(user_id), today))
-        conn.commit()
-        await update.message.reply_text("您已清除今天记录。")
+        # 敏感操作二次确认
+        keyboard = [
+            [InlineKeyboardButton("确认清空今天记录", callback_data='confirm_clear_today'),
+             InlineKeyboardButton("取消", callback_data='cancel_clear')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("确定要清空今天的账单吗？此操作不可恢复。", reply_markup=reply_markup)
+        conn.close()
+        return
     else:
         await update.message.reply_text("您的输入有误。")
         conn.close()
@@ -566,12 +635,16 @@ async def handle_query_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if text == "1":
         user_temp[user_id]["query_type"] = "income"
-        await update.message.reply_text("请输入查询日期：（比如2025-6-1或2025-6-1至2025-7-31,这样的时间格式）")
+        await update.message.reply_text(
+            "请输入查询日期：\n支持格式如：\n- 2025-6-1（单日）\n- 2025-6-1至2025-7-31（区间）\n- 昨天、前天、今天、本月、上月、今年、去年\n- 6月、去年3月、2024年5月"
+        )
         user_state[user_id] = QUERY_DATE
         set_timeout(user_id)
     elif text == "2":
         user_temp[user_id]["query_type"] = "expense"
-        await update.message.reply_text("请输入查询日期：（比如2025-6-1或2025-6-1至2025-7-31,这样的时间格式）")
+        await update.message.reply_text(
+            "请输入查询日期：\n支持格式如：\n- 2025-6-1（单日）\n- 2025-6-1至2025-7-31（区间）\n- 昨天、前天、今天、本月、上月、今年、去年\n- 6月、去年3月、2024年5月"
+        )
         user_state[user_id] = QUERY_DATE
         set_timeout(user_id)
     else:
@@ -748,7 +821,7 @@ async def handle_auth_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_type == "private" and is_admin(user_id):
         return
     if text == "1":
-        await update.message.reply_text("请输入被授权人用户名：")
+        await update.message.reply_text("请输入被授权人用户名和天数：（比如@***** 3）输入3代表授权3天，输入其他数字代表授权授权天数")
         user_state[user_id] = AUTH_USER
         set_timeout(user_id)
     elif text == "2":
@@ -765,37 +838,20 @@ async def handle_auth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_state.get(user_id, WAITING) != AUTH_USER:
         return
     text = update.message.text.strip()
-    if not text.startswith("@"): 
-        await update.message.reply_text("您的输入有误。"); reset_state(user_id); return
-    username = text.split()[0]
-    users = load_users()
-    if username in users:
-        user_temp[user_id] = {"auth_username": username}
-        await update.message.reply_text("请输入授权天数：")
-        user_state[user_id] = AUTH_DAYS
-        set_timeout(user_id)
-    else:
-        await update.message.reply_text("群组内无该用户。")
+    parts = text.split()
+    if len(parts) != 2 or not parts[0].startswith("@"):
+        await update.message.reply_text("输入格式有误，请输入：@用户名 天数，例如@user 3")
         reset_state(user_id)
-
-# 新增处理授权天数的状态
-async def handle_auth_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_state.get(user_id, WAITING) != AUTH_DAYS:
         return
-    text = update.message.text.strip()
-    # 支持中文数字一/二
-    cn_digit_map = {'一': 1, '二': 2}
-    if text in cn_digit_map:
-        days = cn_digit_map[text]
-    else:
-        try:
-            days = int(text)
-            if days <= 0 or days > 365:
-                raise ValueError()
-        except Exception:
-            await update.message.reply_text("请输入正确的天数（1-365）！"); reset_state(user_id); return
-    username = user_temp[user_id].get("auth_username")
+    username = parts[0]
+    try:
+        days = int(parts[1])
+        if days <= 0 or days > 365:
+            raise ValueError()
+    except Exception:
+        await update.message.reply_text("请输入正确的天数（1-365）！")
+        reset_state(user_id)
+        return
     users = load_users()
     if username in users:
         uid = users[username]
@@ -805,10 +861,14 @@ async def handle_auth_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config["auth_expire"] = {}
         config["auth_expire"][uid] = time.time() + days*24*3600
         save_config(config)
-        await update.message.reply_text(f"你已授权{username} {days}天。\n授权时间到期后被授权人需要重新授权。")
+        await update.message.reply_text(f"{username}已授权{days}天。\n授权时间到期后被授权人需要重新授权。")
     else:
         await update.message.reply_text("群组内无该用户。")
     reset_state(user_id)
+
+# 新增处理授权天数的状态
+    # 已合并到 handle_auth_user，一步输入 @用户名 天数
+    pass
 
 async def handle_unauth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -913,14 +973,16 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
     )
     month_total = c.fetchone()[0] or 0.0
     conn.close()
-    msg = f"记录成功：{amount}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
+    def fmt_amt(val):
+        return f"{-val:.2f}" if record_type == 'expense' else f"{val:.2f}"
+    msg = f"记录成功：{fmt_amt(amount)}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
     start_num = len(all_rows) - len(rows) + 1
     for i, row in enumerate(rows, start_num):
-        msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} |"
+        msg += f"{i}| {fmt_amt(row[0])} | {row[1]} | {row[2]} |"
         if row[3] != today:
             msg += f" ({row[3]})"
         msg += "\n"
-    msg += f"\n当天累计{'收入' if record_type=='income' else '支出'}：{day_total:.2f}\n本月累计{'收入' if record_type=='income' else '支出'}：{month_total:.2f}"
+    msg += f"\n当天累计{'收入' if record_type=='income' else '支出'}：{fmt_amt(day_total)}\n本月累计{'收入' if record_type=='income' else '支出'}：{fmt_amt(month_total)}"
     await update.message.reply_text(msg)
 
 # 优化自然语言记账解析
@@ -971,6 +1033,64 @@ def parse_natural_language_record(text):
         if digit:
             text = text.replace(m_cn.group(1), str(digit))
 
+    # 1. 支持“昨天”“前天”
+    import re as _re
+    _today = date.today()
+    if text.startswith("昨天"):
+        record_date = _today - timedelta(days=1)
+        text = text.replace("昨天", "", 1).strip()
+    elif text.startswith("前天"):
+        record_date = _today - timedelta(days=2)
+        text = text.replace("前天", "", 1).strip()
+    else:
+        record_date = None
+    # 2. 支持“2025-6-3 购物 200”/“2025/6/3 购物 200”
+    m_full = _re.match(r"^([12][0-9]{3})[年/-]([0-9]{1,2})[月/-]([0-9]{1,2})[日号]?\s*(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+    if m_full:
+        year = int(m_full.group(1))
+        month = int(m_full.group(2))
+        day = int(m_full.group(3))
+        desc = m_full.group(4).strip()
+        amount = float(m_full.group(5))
+        record_date = date(year, month, day)
+        return {
+            "type": "expense",
+            "amount": amount,
+            "category": get_category(desc),
+            "description": desc,
+            "date": record_date.strftime('%Y-%m-%d')
+        }
+    # 3. 支持“6月3日 购物 200”“6/3 购物 200”“6-3 购物 200”
+    m_md = _re.match(r"^([0-9]{1,2})[月/-]([0-9]{1,2})[日号]?\s*(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+    if m_md:
+        month = int(m_md.group(1))
+        day = int(m_md.group(2))
+        desc = m_md.group(3).strip()
+        amount = float(m_md.group(4))
+        year = _today.year
+        if month > _today.month:
+            year -= 1
+        record_date = date(year, month, day)
+        return {
+            "type": "expense",
+            "amount": amount,
+            "category": get_category(desc),
+            "description": desc,
+            "date": record_date.strftime('%Y-%m-%d')
+        }
+    # 4. 支持“昨天 购物 200”“前天 购物 200”
+    if record_date is not None:
+        m = _re.match(r"(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+        if m:
+            desc = m.group(1).strip()
+            amount = float(m.group(2))
+            return {
+                "type": "expense",
+                "amount": amount,
+                "category": get_category(desc),
+                "description": desc,
+                "date": record_date.strftime('%Y-%m-%d')
+            }
     # 解析“描述 金额”或“金额 描述”
     m1 = re.match(r"(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
     m2 = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*(.+)$", text)
@@ -981,7 +1101,7 @@ def parse_natural_language_record(text):
         return {
             "type": "expense",
             "amount": amount,
-            "category": "其他",
+            "category": get_category(desc),
             "description": desc,
             "date": today_str
         }
@@ -991,7 +1111,7 @@ def parse_natural_language_record(text):
         return {
             "type": "expense",
             "amount": amount,
-            "category": "其他",
+            "category": get_category(desc),
             "description": desc,
             "date": today_str
         }
@@ -1330,33 +1450,34 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         amount = float(m.group(1))
         desc = m.group(2) if m.group(2) else "未填写"
         today = date.today().strftime("%Y-%m-%d")
+        category = auto_categorize(desc)
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute(
-            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, 'income', ?, '其他', ?, ?)",
-            (str(user_id), amount, desc, today)
+            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, 'income', ?, ?, ?, ?)",
+            (str(user_id), amount, category, desc, today)
         )
         conn.commit()
         conn.close()
         await reply_record_success(update, user_id, "income", amount, desc, today)
         reset_state(user_id)
         return True
-    m = re.match(r"^([+-])\d+([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
+    m = re.match(r"^([+-])([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
     if m:
-        amount = float(m.group(1))
-        desc = m.group(2)
+        amount = float(m.group(2))
+        desc = m.group(3)
         today = date.today().strftime("%Y-%m-%d")
-        type_ = "income" if m.group(1) == "+" else "expense"
-        amount = amount if type_ == "income" else abs(amount)
+        type_ = "expense"
+        category = auto_categorize(desc)
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute(
-            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, '其他', ?, ?)",
-            (str(user_id), type_, abs(amount), desc, today)
+            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
+            (str(user_id), type_, amount, category, desc, today)
         )
         conn.commit()
         conn.close()
-        await reply_record_success(update, user_id, type_, abs(amount), desc, today)
+        await reply_record_success(update, user_id, type_, amount, desc, today)
         reset_state(user_id)
         return True
     return False  # 防止其他格式如纯数字触发
@@ -1481,28 +1602,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = user_state.get(user_id, WAITING)
     text = update.message.text.strip()
 
-    # 私聊：管理员除“授权”外拥有所有权限，被授权人全部允许
+    # 私聊：管理员除“授权”外全部允许
     if chat_type == "private":
         if is_admin(user_id):
             if state == WAITING and text == "授权":
                 return  # 管理员私聊禁止“授权”
             # 其它全部允许
-        elif not is_authorized(user_id):
+        else:
+            # 非管理员私聊无权限
             return
-        # 被授权人全部允许
     else:
         # 群组
         if is_admin(user_id):
-            # 只在待命状态下限制只能输入“授权”
+            # 群组内管理员仅能授权
             if state == WAITING and text != "授权":
                 return
         elif is_authorized(user_id):
-            # 被授权人只在待命状态下禁止“授权”指令，其它全部允许
+            # 群组内被授权人除“授权”外全部允许
             if state == WAITING and text == "授权":
                 return
-            # 其它指令全部允许，继续往下走
+            # 其它指令全部允许
         else:
-            # 非授权人/非管理员无任何权限
+            # 群组内未授权人无任何权限
             return
     set_timeout(user_id)  # 每次操作重置超时
 
@@ -1675,9 +1796,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     application = Application.builder().token(TOKEN).build()
     # 授权类型选择（1/2）
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^[12]$"), handle_auth_type))
+    # application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^[12]$"), handle_auth_type))
     # 授权天数输入处理（正则允许前后空格和中文一二，注册顺序在 handle_auth_type 之后）
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^\s*(\d{1,3}|[一二])\s*$"), handle_auth_days))
+    # application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^\s*(\d{1,3}|[一二])\s*$"), handle_auth_days))
     application.add_handler(CommandHandler("start", start))
     # 先注册所有文本命令，保证优先匹配
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^(添加错别字|删除错别字|查看错别字)"), typo_cmd))
