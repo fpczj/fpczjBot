@@ -2,7 +2,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackQueryHandler, ContextTypes
 # 清空账单按钮回调处理
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_callback(update, context):
     # 授权管理按钮
     if query.data == 'auth_grant':
         await query.edit_message_text("请输入要授权的用户名和天数，格式：@用户名 天数")
@@ -1883,7 +1883,7 @@ async def quick_keyword_query(update, user_id, text):
         return True
     return False
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update, context):
     if state == 'QUERY_DATE_CUSTOM':
         # 用户自定义日期输入
         user_id = update.effective_user.id
