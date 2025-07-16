@@ -1337,8 +1337,11 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
         return False
     # 语义增强：同上/上次补全
     # 口语化表达：再来一条/帮我记一笔/再记一次
+    import logging
+    logger = logging.getLogger("nl_record_trace")
     if text in ["同上", "上次"] and user_id in user_last_record:
         rec = copy.deepcopy(user_last_record[user_id])
+        logger.warning(f"[NL-TRACE] 同上/上次 rec: {rec}")
         if rec:
             user_temp[user_id] = {"nl_record": rec}
             user_state[user_id] = PENDING_NL_RECORD
@@ -1351,6 +1354,7 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
         return False
     if text in ["再来一条", "再记一次", "帮我记一笔"] and user_id in user_last_record:
         rec = copy.deepcopy(user_last_record[user_id])
+        logger.warning(f"[NL-TRACE] 口语化 rec: {rec}")
         if rec:
             user_temp[user_id] = {"nl_record": rec}
             user_state[user_id] = PENDING_NL_RECORD
@@ -1363,6 +1367,7 @@ async def try_natural_language_record(update: Update, context: ContextTypes.DEFA
         return False
     # 使用优化后的解析
     rec = parse_natural_language_record(text)
+    logger.warning(f"[NL-TRACE] 解析 rec: {rec}")
     if rec:
         user_temp[user_id] = {"nl_record": rec}
         user_state[user_id] = PENDING_NL_RECORD
@@ -1379,11 +1384,15 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
     global user_last_record, user_common_desc, user_last_bill_id
     user_id = update.effective_user.id
     # 只允许 owner 继续操作
+    import logging
+    logger = logging.getLogger("nl_record_trace")
     if user_state.get(user_id) != PENDING_NL_RECORD or user_owner.get(user_id) != user_id:
+        logger.warning(f"[NL-TRACE] 状态异常 user_id={user_id} state={user_state.get(user_id)} owner={user_owner.get(user_id)}")
         return
     text = update.message.text.strip()
     if text == "1":
         rec = user_temp[user_id].get("nl_record")
+        logger.warning(f"[NL-TRACE] 确认 rec: {rec}")
         if not rec:
             await update.message.reply_text("数据异常，未能记账。5秒后自动返回待命状态。")
             await asyncio.sleep(5)
@@ -1406,14 +1415,17 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
         user_last_bill_id[user_id] = bill_id
         conn.commit()
         conn.close()
+        logger.warning(f"[NL-TRACE] 入库 rec: {rec}")
         await reply_record_success(update, user_id, rec["type"], rec["amount"], rec["description"], rec["date"])
         # 记账回复后即刻回到待命状态，无需等待
         reset_state(user_id)
         return
     if text == "2":
+        logger.warning(f"[NL-TRACE] 用户取消 user_id={user_id}")
         await update.message.reply_text("已取消。")
         reset_state(user_id)
         return
+    logger.warning(f"[NL-TRACE] 输入有误 user_id={user_id} text={text}")
     await update.message.reply_text("您的输入有误。5秒后自动返回待命状态。")
     await asyncio.sleep(5)
     reset_state(user_id)
