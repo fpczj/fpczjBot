@@ -1735,8 +1735,8 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_users(users)
     text = update.message.text.strip()
     # 直接记账，无需确认
-    # 收入 金额 或 收入 金额 描述
-    m = re.match(r"^收入\s+([0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?", text)
+    # 收入 金额 或 收入 金额 描述，允许负数
+    m = re.match(r"^收入\s+([+-]?[0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?", text)
     if m:
         amount = float(m.group(1))
         desc = m.group(2) if m.group(2) else "未填写"
