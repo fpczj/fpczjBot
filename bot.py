@@ -564,12 +564,16 @@ async def handle_query_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if text == "1":
         user_temp[user_id]["query_type"] = "income"
-        await update.message.reply_text("请输入查询日期：（比如2025-6-1或2025-6-1至2025-7-31,这样的时间格式）")
+        await update.message.reply_text(
+            "请输入查询日期：\n支持格式如：\n- 2025-6-1（单日）\n- 2025-6-1至2025-7-31（区间）\n- 昨天、前天、今天、本月、上月、今年、去年\n- 6月、去年3月、2024年5月"
+        )
         user_state[user_id] = QUERY_DATE
         set_timeout(user_id)
     elif text == "2":
         user_temp[user_id]["query_type"] = "expense"
-        await update.message.reply_text("请输入查询日期：（比如2025-6-1或2025-6-1至2025-7-31,这样的时间格式）")
+        await update.message.reply_text(
+            "请输入查询日期：\n支持格式如：\n- 2025-6-1（单日）\n- 2025-6-1至2025-7-31（区间）\n- 昨天、前天、今天、本月、上月、今年、去年\n- 6月、去年3月、2024年5月"
+        )
         user_state[user_id] = QUERY_DATE
         set_timeout(user_id)
     else:
@@ -958,6 +962,64 @@ def parse_natural_language_record(text):
         if digit:
             text = text.replace(m_cn.group(1), str(digit))
 
+    # 1. 支持“昨天”“前天”
+    import re as _re
+    _today = date.today()
+    if text.startswith("昨天"):
+        record_date = _today - timedelta(days=1)
+        text = text.replace("昨天", "", 1).strip()
+    elif text.startswith("前天"):
+        record_date = _today - timedelta(days=2)
+        text = text.replace("前天", "", 1).strip()
+    else:
+        record_date = None
+    # 2. 支持“2025-6-3 购物 200”/“2025/6/3 购物 200”
+    m_full = _re.match(r"^([12][0-9]{3})[年/-]([0-9]{1,2})[月/-]([0-9]{1,2})[日号]?\s*(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+    if m_full:
+        year = int(m_full.group(1))
+        month = int(m_full.group(2))
+        day = int(m_full.group(3))
+        desc = m_full.group(4).strip()
+        amount = float(m_full.group(5))
+        record_date = date(year, month, day)
+        return {
+            "type": "expense",
+            "amount": amount,
+            "category": get_category(desc),
+            "description": desc,
+            "date": record_date.strftime('%Y-%m-%d')
+        }
+    # 3. 支持“6月3日 购物 200”“6/3 购物 200”“6-3 购物 200”
+    m_md = _re.match(r"^([0-9]{1,2})[月/-]([0-9]{1,2})[日号]?\s*(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+    if m_md:
+        month = int(m_md.group(1))
+        day = int(m_md.group(2))
+        desc = m_md.group(3).strip()
+        amount = float(m_md.group(4))
+        year = _today.year
+        if month > _today.month:
+            year -= 1
+        record_date = date(year, month, day)
+        return {
+            "type": "expense",
+            "amount": amount,
+            "category": get_category(desc),
+            "description": desc,
+            "date": record_date.strftime('%Y-%m-%d')
+        }
+    # 4. 支持“昨天 购物 200”“前天 购物 200”
+    if record_date is not None:
+        m = _re.match(r"(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
+        if m:
+            desc = m.group(1).strip()
+            amount = float(m.group(2))
+            return {
+                "type": "expense",
+                "amount": amount,
+                "category": get_category(desc),
+                "description": desc,
+                "date": record_date.strftime('%Y-%m-%d')
+            }
     # 解析“描述 金额”或“金额 描述”
     m1 = re.match(r"(.+?)\s*([0-9]+(?:\.[0-9]+)?)$", text)
     m2 = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*(.+)$", text)
@@ -968,7 +1030,7 @@ def parse_natural_language_record(text):
         return {
             "type": "expense",
             "amount": amount,
-            "category": "其他",
+            "category": get_category(desc),
             "description": desc,
             "date": today_str
         }
@@ -978,7 +1040,7 @@ def parse_natural_language_record(text):
         return {
             "type": "expense",
             "amount": amount,
-            "category": "其他",
+            "category": get_category(desc),
             "description": desc,
             "date": today_str
         }
@@ -1328,22 +1390,21 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_record_success(update, user_id, "income", amount, desc, today)
         reset_state(user_id)
         return True
-    m = re.match(r"^([+-])\d+([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
+    m = re.match(r"^([+-])([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
     if m:
-        amount = float(m.group(1))
-        desc = m.group(2)
+        amount = float(m.group(2))
+        desc = m.group(3)
         today = date.today().strftime("%Y-%m-%d")
-        type_ = "income" if m.group(1) == "+" else "expense"
-        amount = amount if type_ == "income" else abs(amount)
+        type_ = "expense"
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute(
             "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, '其他', ?, ?)",
-            (str(user_id), type_, abs(amount), desc, today)
+            (str(user_id), type_, amount, desc, today)
         )
         conn.commit()
         conn.close()
-        await reply_record_success(update, user_id, type_, abs(amount), desc, today)
+        await reply_record_success(update, user_id, type_, amount, desc, today)
         reset_state(user_id)
         return True
     return False  # 防止其他格式如纯数字触发
