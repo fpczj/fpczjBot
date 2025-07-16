@@ -1882,7 +1882,7 @@ async def quick_keyword_query(update, user_id, text):
     return False
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    elif state == 'QUERY_DATE_CUSTOM':
+    if state == 'QUERY_DATE_CUSTOM':
         # 用户自定义日期输入
         user_id = update.effective_user.id
         user_state[user_id] = QUERY_DATE
