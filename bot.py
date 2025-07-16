@@ -942,6 +942,8 @@ async def handle_auth_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_auth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    chat = update.effective_chat
+    chat_id = str(chat.id)
     if user_state.get(user_id, WAITING) != AUTH_USER:
         return
     text = update.message.text.strip()
@@ -961,12 +963,14 @@ async def handle_auth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     users = load_users()
     if username in users:
-        uid = users[username]
-        if uid not in config["authorized"]:
-            config["authorized"].append(uid)
+        uid = str(users[username])
+        if chat_id not in config["authorized"]:
+            config["authorized"][chat_id] = []
+        if uid not in config["authorized"][chat_id]:
+            config["authorized"][chat_id].append(uid)
         if "auth_expire" not in config:
             config["auth_expire"] = {}
-        config["auth_expire"][uid] = time.time() + days*24*3600
+        config["auth_expire"][f"{chat_id}:{uid}"] = time.time() + days*24*3600
         save_config(config)
         await update.message.reply_text(f"{username}已授权{days}天。\n授权时间到期后被授权人需要重新授权。")
     else:
