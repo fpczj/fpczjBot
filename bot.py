@@ -1752,27 +1752,27 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reset_state(user_id)
         return True
     # +金额 描述 或 -金额 描述 记为支出，允许负数
-m = re.match(r"^([+-])([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
-if m:
-    sign = m.group(1)
-    amount = float(m.group(2))
-    if sign == '-':
-        amount = -amount
-    desc = m.group(3)
-    today = date.today().strftime("%Y-%m-%d")
-    type_ = "expense"
-    category = auto_categorize(desc)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
-        (str(user_id), type_, amount, category, desc, today)
-    )
-    conn.commit()
-    conn.close()
-    await reply_record_success(update, user_id, type_, amount, desc, today)
-    reset_state(user_id)
-    return True
+    m = re.match(r"^([+-])([0-9]+(?:\.[0-9]+)?)\s+(.+)", text)
+    if m:
+        sign = m.group(1)
+        amount = float(m.group(2))
+        if sign == '-':
+            amount = -amount
+        desc = m.group(3)
+        today = date.today().strftime("%Y-%m-%d")
+        type_ = "expense"
+        category = auto_categorize(desc)
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
+            (str(user_id), type_, amount, category, desc, today)
+        )
+        conn.commit()
+        conn.close()
+        await reply_record_success(update, user_id, type_, amount, desc, today)
+        reset_state(user_id)
+        return True
     return False  # 防止其他格式如纯数字触发
 
 async def quick_keyword_query(update, user_id, text):
