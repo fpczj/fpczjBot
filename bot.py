@@ -1790,7 +1790,7 @@ async def quick_keyword_query(update, user_id, text):
         total = c.fetchone()[0] or 0.0
         msg = f"今天收入明细：\n"
         for i, row in enumerate(rows, 1):
-            msg += f"{i} | {row[0]:.2f} | {row[1]} | {row[2]} | {row[3]}\n"
+            msg += f"{i} | {abs(row[0]):.2f} | {row[1]} | {row[2]} | {row[3]}\n"
         msg += f"今天总收入：{total:.2f}"
     elif text in ["今天支出", "今日支出"]:
         qtype = "expense"
