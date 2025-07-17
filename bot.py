@@ -1862,51 +1862,39 @@ async def quick_keyword_query(update, user_id, text):
         return True
     return False
 
+async def has_permission(user_id, chat_type, chat_id, text, state):
+    # 管理员
+    if chat_type == "private":
+        if is_admin(user_id):
+            if state == WAITING and text == "授权":
+                return False  # 管理员私聊禁止“授权”
+            return True      # 其它全部允许
+        else:
+            return False     # 非管理员私聊无权限
+    else:
+        if is_admin(user_id):
+            if state == WAITING and text != "授权":
+                return False # 群组内管理员仅能授权
+            return True
+        elif is_authorized(user_id, chat_id):
+            if state == WAITING and text == "授权":
+                return False # 被授权人群组内禁止“授权”
+            return True      # 其它指令全部允许
+        else:
+            return False     # 群组内未授权人无任何权限
+
+# 在 handle_message 里这样用：
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    import logging
-    logger = logging.getLogger("nl_record_trace")
     user_id = update.effective_user.id
     chat = update.effective_chat
-    logger.warning(f"[MSG] user_id={user_id} chat_id={chat.id} state={user_state.get(user_id)} text={getattr(update.message, 'text', None)}")
-    user_id = update.effective_user.id
-    username = update.effective_user.username
     chat_type = update.message.chat.type
     state = user_state.get(user_id, WAITING)
     text = update.message.text.strip()
 
-    # 私聊：管理员除“授权”外全部允许
-    if chat_type == "private":
-        if is_admin(user_id):
-            if state == WAITING and text == "授权":
-                return  # 管理员私聊禁止“授权”
-            # 其它全部允许
-        else:
-            # 非管理员私聊无权限
-            return
-    else:
-        # 群组
-        chat = update.effective_chat
-        if is_admin(user_id):
-            # 群组内管理员仅能授权
-            if state == WAITING and text != "授权":
-                return
-        elif is_authorized(user_id, chat.id):
-            # 群组内被授权人除“授权”外全部允许
-            if state == WAITING and text == "授权":
-                return
-            # 其它指令全部允许
-        else:
-            # 群组内未授权人无任何权限
-            return
-    set_timeout(user_id)  # 每次操作重置超时
+    if not has_permission(user_id, chat_type, chat.id, text, state):
+        return  # 没权限直接返回
 
-    if username:
-        users = load_users()
-        at_name = f"@{username}"
-        if at_name not in users:
-            users[at_name] = str(user_id)
-            save_users(users)
-    text = update.message.text.strip()
+    # ...后续你的业务逻辑...
 
     # 只允许严格格式命令和关键词查询，彻底关闭自然语言记账
     valid_cmds = ["账单", "报表", "清除", "查询", "返回", "授权", "收入", "帮助", "开始"]
