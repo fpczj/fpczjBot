@@ -611,6 +611,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(menu)
     reset_state(update.effective_user.id)
+    user_id = update.effective_user.id
     user_temp[user_id] = {}
     user_owner[user_id] = user_id
     set_timeout(user_id)
