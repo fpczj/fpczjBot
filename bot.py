@@ -1893,7 +1893,7 @@ async def quick_keyword_query(update, user_id, text):
         return True
     return False
 
-async def has_permission(user_id, chat_type, chat_id, text, state):
+def has_permission(user_id, chat_type, chat_id, text, state):
     # 管理员
     if chat_type == "private":
         if is_admin(user_id):
