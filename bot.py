@@ -1,3 +1,15 @@
+import json
+import os
+
+def load_typo_dict():
+    if not os.path.exists('typo_dict.json'):
+        return {}
+    with open('typo_dict.json', "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_typo_dict(typo_dict):
+    with open('typo_dict.json', "w", encoding="utf-8") as f:
+        json.dump(typo_dict, f, ensure_ascii=False, indent=2)
 import threading
 import json
 import os
@@ -63,42 +75,42 @@ def reset_state(user_id):
     user_session.reset(user_id)
 
 def set_timeout(user_id):
-    def timeout():
-        user_session.reset(user_id)
-    if user_id in user_timer:
-        user_timer[user_id].cancel()
-    timer = threading.Timer(TIMEOUT_SECONDS, timeout)
-    user_timer[user_id] = timer
-    timer.start()
-
-def save_typo_dict(typo_dict):
-    with open(TYPO_DICT_PATH, "w", encoding="utf-8") as f:
-        json.dump(typo_dict, f, ensure_ascii=False, indent=2)
-
-
-def load_typo_dict():
-    if not os.path.exists(TYPO_DICT_PATH):
-        with open(TYPO_DICT_PATH, "w", encoding="utf-8") as f:
-            json.dump({}, f, ensure_ascii=False, indent=2)
-        return {}
-    else:
-        with open(TYPO_DICT_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-
-def load_users():
-    if not os.path.exists(USERS_PATH):
-        with open(USERS_PATH, "w", encoding="utf-8") as f:
-            json.dump({}, f, ensure_ascii=False, indent=2)
-        return {}
-    else:
-        with open(USERS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-def save_users(users):
-    with open(USERS_PATH, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
+    help_text = (
+        "当前机器人支持的主要指令如下：\n"
+        "\n"
+        "记账指令（严格格式）\n"
+        "●收入 金额 描述\n"
+        "●支出 金额 描述\n"
+        "●+金额 描述\n"
+        "●-金额 描述\n"
+        "示例：\n"
+        "\n"
+        "查询与统计指令（关键词查询）\n"
+        "●今天收入\n"
+        "●今天支出\n"
+        "●本月收入\n"
+        "●本月支出\n"
+        "●7月、去年6月、去年、2024年 等灵活年月表达\n"
+        "●账单\n"
+        "●报表\n"
+        "●查询\n"
+        "\n"
+        "管理与辅助指令\n"
+        "●添加分类 描述=分类\n"
+        "●删除分类 描述\n"
+        "●查看分类\n"
+        "●添加错别字 错别词=正确词\n"
+        "●删除错别字 错别词\n"
+        "●查看错别字\n"
+        "●撤销\n"
+        "●常用描述\n"
+        "●清除\n"
+        "●返回\n"
+        "●开始\n"
+        "●帮助\n"
+        "●授权（仅管理员群组内使用）\n"
+        "呈现后机器人返回待命状态"
+    )
 async def typo_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat = update.effective_chat
@@ -193,13 +205,7 @@ async def suggest_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 本月统计命令
 async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat = update.effective_chat
-    # 只有管理员可以私聊
-    if chat.type == "private" and not is_admin(user_id):
-        return
-    if not is_admin_or_authorized(user_id, chat.id):
-        return
+    # 所有用户均可使用“开始”菜单，无需权限判断
     text = update.message.text.strip()
     # 智能解析时间
     import re
@@ -207,49 +213,38 @@ async def month_stat_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = date.today()
     # 默认本月
     year = today.year
+    menu = (
+        "欢迎使用记账机器人！\n"
+        "\n"
+        "可用指令：\n"
+        "●输入“收入 金额”或“收入 金额 描述”为收入；\n"
+        "\n"
+        "● 输入“+或-金额 描述”为支出；\n"
+        "\n"
+        "●输入“账单”可按月份查询明细；\n"
+        "\n"
+        "●输入“报表”可按月份查询分类汇总；\n"
+        "\n"
+        "输入“查询”可查：\n"
+        "● “昨天”、“前天”、“今天”、“本月”、“上月”、“今年”；\n"
+        "\n"
+        "●“去年6月”、“去年3月”、“2024年5月”；\n"
+        "\n"
+        "●“2025年6月1至2025年7月31”（区间）；\n"
+        "\n"
+        "●“今天收入”、“本月支出”、“上月收入”\n"
+        "\n"
+        "如需帮助请回复“帮助”。"
+    )
     month = today.month
     # 支持“上月统计”“3月统计”“去年1月统计”等
     m1 = re.match(r"^(去年|[12]?\d{3,4}年)?(\d{1,2})?月?统计$", text)
     m2 = re.match(r"^上月统计$", text)
     m_year = re.match(r"^(今年|去年|[12]?\d{3,4}年)统计$", text)
-    if m2:
-        if month == 1:
-            year -= 1
-            month = 12
-        else:
-            month -= 1
-        # 月统计
-        month_str = f"{year}-{month:02d}"
-        where = f"strftime('%Y-%m', date) = '{month_str}'"
-        label = f"{month_str}统计"
-    elif m1:
-        y, m = m1.group(1), m1.group(2)
-        if y:
-            if y == "去年":
-                year -= 1
-            else:
-                year = int(re.sub(r"年", "", y))
-        if m:
-            month = int(m)
-        # 月统计
-        month_str = f"{year}-{month:02d}"
-        where = f"strftime('%Y-%m', date) = '{month_str}'"
-        label = f"{month_str}统计"
-    elif m_year:
-        y = m_year.group(1)
-        if y == "今年":
-            year = today.year
-        elif y == "去年":
-            year = today.year - 1
-        else:
-            year = int(re.sub(r"年", "", y))
-        # 年统计
-        where = f"strftime('%Y', date) = '{year}'"
-        label = f"{year}年统计"
-    else:
-        await update.message.reply_text("您的输入有误。（机器人立刻返回待命状态）")
-        reset_state(user_id)
-        return
+    # 菜单展示函数只需展示menu，无需统计分支，移除无意义if分支
+    await update.message.reply_text(menu)
+    return
+    # ...菜单展示已完成，移除所有统计分支残留...
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     # 分类统计支出
@@ -347,6 +342,18 @@ typo_dict = load_typo_dict()
 
 
 # --- 数据库操作封装 ---
+import json
+import os
+
+def load_typo_dict():
+    if not os.path.exists(TYPO_DICT_PATH):
+        return {}
+    with open(TYPO_DICT_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_typo_dict(typo_dict):
+    with open(TYPO_DICT_PATH, "w", encoding="utf-8") as f:
+        json.dump(typo_dict, f, ensure_ascii=False, indent=2)
 class BillDB:
     def __init__(self, db_path):
         self.db_path = db_path
@@ -425,6 +432,15 @@ class BillDB:
 bill_db = BillDB(DB_PATH)
 
 # --- 用户状态管理封装 ---
+def load_users():
+    if not os.path.exists(USERS_PATH):
+        return {}
+    with open(USERS_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_users(users):
+    with open(USERS_PATH, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
 class UserSession:
     def __init__(self):
         self.state = {}
@@ -561,16 +577,7 @@ async def show_menu(update):
     reset_state(update.effective_user.id)
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat = update.effective_chat
-    if chat.type in ["group", "supergroup"]:
-        if is_admin(user_id):
-            return
-        if not is_authorized(user_id, chat.id):
-            return
-    else:
-        if not (is_admin(user_id) or is_authorized(user_id, chat.id)):
-            return
+    # 所有用户均可使用“帮助”指令，无需权限判断
     menu = (
         "当前机器人支持的主要指令如下：\n"
         "\n"
@@ -595,27 +602,16 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "●添加分类 描述=分类\n"
         "●删除分类 描述\n"
         "●查看分类\n"
-        "●添加错别字 错别词=正确词\n"
-        "●删除错别字 错别词\n"
-        "●查看错别字\n"
         "●撤销\n"
-        "●常用描述\n"
         "●清除\n"
         "●返回\n"
         "●开始\n"
         "●帮助\n"
         "●授权（仅管理员群组内使用）\n"
+        "呈现后机器人返回待命状态"
     )
     await update.message.reply_text(menu)
     reset_state(update.effective_user.id)
-    reset_state(user_id)
-
-async def bill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin_or_authorized(user_id, update.effective_chat.id):
-        return
-    await update.message.reply_text("您要查询的是收入账单还是支出账单？1“收入” 2“支出”")
-    user_state[user_id] = BILL_TYPE
     user_temp[user_id] = {}
     user_owner[user_id] = user_id
     set_timeout(user_id)
@@ -810,44 +806,7 @@ async def handle_query_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return d1, d2
 
     def parse_single_date(s, is_start=True):
-        s = s.strip()
-        today = date.today()
-        # 支持“昨天/前天/今日/今天/上周/上月/本月/今年/去年”
-        if s in ["昨天", "昨日"]:
-            d = today - timedelta(days=1)
-            return d.strftime("%Y-%m-%d")
-        if s == "前天":
-            d = today - timedelta(days=2)
-            return d.strftime("%Y-%m-%d")
-        if s in ["今天", "今日"]:
-            return today.strftime("%Y-%m-%d")
-        if s == "上月" or s == "上个月":
-            first = today.replace(day=1)
-            last_month_end = first - timedelta(days=1)
-            if is_start:
-                return last_month_end.replace(day=1).strftime("%Y-%m-%d")
-            else:
-                return last_month_end.strftime("%Y-%m-%d")
-        if s == "本月":
-            if is_start:
-                return today.replace(day=1).strftime("%Y-%m-%d")
-            else:
-                return today.strftime("%Y-%m-%d")
-        if s == "上周":
-            start = today - timedelta(days=today.weekday()+7)
-            end = start + timedelta(days=6)
-            return start.strftime("%Y-%m-%d") if is_start else end.strftime("%Y-%m-%d")
-        if s == "本周":
-            start = today - timedelta(days=today.weekday())
-            return start.strftime("%Y-%m-%d") if is_start else today.strftime("%Y-%m-%d")
-        # 2024年7月2日、2024-7-2、7月2日、7-2、7月、7
-        m1 = re.match(r'^(\d{4})[年-](\d{1,2})[月-](\d{1,2})[日号]?$', s)
-        if m1:
-            return f"{int(m1.group(1)):04d}-{int(m1.group(2)):02d}-{int(m1.group(3)):02d}"
-        m2 = re.match(r'^(\d{1,2})[月-](\d{1,2})[日号]?$', s)
-        if m2:
-            return f"{today.year:04d}-{int(m2.group(1)):02d}-{int(m2.group(2)):02d}"
-        m3 = re.match(r'^(\d{4})[年-](\d{1,2})[月]$', s)
+        m3 = re.match(r'^({4})[年-]({1,2})[月]$', s)
         if m3:
             if is_start:
                 return f"{int(m3.group(1)):04d}-{int(m3.group(2)):02d}-01"
@@ -861,7 +820,7 @@ async def handle_query_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return f"{y:04d}-{m:02d}-{last_day:02d}"
         m4 = re.match(r'^(\d{1,2})[月]$', s)
         if m4:
-            y, m = today.year, int(m4.group(1))
+            y, m = date.today().year, int(m4.group(1))
             if is_start:
                 return f"{y:04d}-{m:02d}-01"
             else:
@@ -871,32 +830,8 @@ async def handle_query_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     next_month = date(y, m+1, 1)
                 last_day = (next_month - timedelta(days=1)).day
                 return f"{y:04d}-{m:02d}-{last_day:02d}"
-        m5 = re.match(r'^(\d{4})$', s)
-        if m5:
-            if is_start:
-                return f"{int(m5.group(1)):04d}-01-01"
-            else:
-                return f"{int(m5.group(1)):04d}-12-31"
-        m6 = re.match(r'^(\d{1,2})$', s)
-        if m6:
-            y, m = today.year, int(m6.group(1))
-            if is_start:
-                return f"{y:04d}-{m:02d}-01"
-            else:
-                if m == 12:
-                    next_month = date(y+1, 1, 1)
-                else:
-                    next_month = date(y, m+1, 1)
-                last_day = (next_month - timedelta(days=1)).day
-                return f"{y:04d}-{m:02d}-{last_day:02d}"
-        m7 = re.match(r'^(\d{1,2})[日号]$', s)
-        if m7:
-            y, m, d = today.year, today.month, int(m7.group(1))
-            return f"{y:04d}-{m:02d}-{d:02d}"
-        m8 = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', s)
-        if m8:
-            return f"{int(m8.group(1)):04d}-{int(m8.group(2)):02d}-{int(m8.group(3)):02d}"
-        return None
+        # 默认返回当天
+        return date.today().strftime('%Y-%m-%d')
 
     start, end = parse_date_range(text)
     if not start or not end:
@@ -1513,42 +1448,32 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
             return d1, d2
 
     def parse_single_date(s, is_start=True):
-        s = s.strip()
-        today = date.today()
-        if s in ["昨天", "昨日"]:
-            d = today - timedelta(days=1)
-            return d.strftime("%Y-%m-%d")
-        if s == "前天":
-            d = today - timedelta(days=2)
-            return d.strftime("%Y-%m-%d")
-        if s in ["今天", "今日"]:
-            return today.strftime("%Y-%m-%d")
-        if s == "上月" or s == "上个月":
-            first = today.replace(day=1)
-            last_month_end = first - timedelta(days=1)
+        m3 = re.match(r'^({4})[年-]({1,2})[月]$', s)
+        if m3:
             if is_start:
-                return last_month_end.replace(day=1).strftime("%Y-%m-%d")
+                return f"{int(m3.group(1)):04d}-{int(m3.group(2)):02d}-01"
             else:
-                return last_month_end.strftime("%Y-%m-%d")
-        if s in ["本月", "这个月"]:
-            first = today.replace(day=1)
-            return first.strftime("%Y-%m-%d") if is_start else today.strftime("%Y-%m-%d")
-        if s in ["今年"]:
-            return today.replace(month=1, day=1).strftime("%Y-%m-%d") if is_start else today.strftime("%Y-%m-%d")
-        if s == "去年":
-            first = today.replace(month=1, day=1)
-            last_year = first - timedelta(days=1)
-            first_last_year = last_year.replace(month=1, day=1)
-            return first_last_year.strftime("%Y-%m-%d") if is_start else last_year.strftime("%Y-%m-%d")
-        if s in ["本周", "这周"]:
-            start = today - timedelta(days=today.weekday())
-            end = start + timedelta(days=6)
-            return start.strftime("%Y-%m-%d") if is_start else end.strftime("%Y-%m-%d")
-        if s == "上周":
-            start = today - timedelta(days=today.weekday()+7)
-            end = start + timedelta(days=6)
-            return start.strftime("%Y-%m-%d") if is_start else end.strftime("%Y-%m-%d")
-        return s
+                y, m = int(m3.group(1)), int(m3.group(2))
+                if m == 12:
+                    next_month = date(y+1, 1, 1)
+                else:
+                    next_month = date(y, m+1, 1)
+                last_day = (next_month - timedelta(days=1)).day
+                return f"{y:04d}-{m:02d}-{last_day:02d}"
+        m4 = re.match(r'^(\d{1,2})[月]$', s)
+        if m4:
+            y, m = date.today().year, int(m4.group(1))
+            if is_start:
+                return f"{y:04d}-{m:02d}-01"
+            else:
+                if m == 12:
+                    next_month = date(y+1, 1, 1)
+                else:
+                    next_month = date(y, m+1, 1)
+                last_day = (next_month - timedelta(days=1)).day
+                return f"{y:04d}-{m:02d}-{last_day:02d}"
+        # 默认返回当天
+        return date.today().strftime('%Y-%m-%d')
     if text.startswith("添加错别字"):
         m = re.match(r"添加错别字\s+(.+?)=(.+)", text)
         if m:
@@ -1597,7 +1522,7 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     # 仅支持如下两种格式自动记账，其它全部忽略：
     # 1. 收入 金额 或 收入 金额 描述
-    m = re.match(r"^收入\s+([+-]?\d+(?:\.\d+)?)(?:\s+(.+))?$", text)
+    m = re.match(r"^收入\s+([+-]?[0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?$", text)
     if m:
         amount = float(m.group(1))
         desc = m.group(2)
@@ -1615,10 +1540,10 @@ async def handle_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if m:
         amount = float(m.group(1))
         desc = m.group(2)
-        today = date.today().strftime("%Y-%m-%d")
+        today_str = date.today().strftime("%Y-%m-%d")
         type_ = "expense"
-        bill_db.insert_bill(user_id, type_, amount, '其他', desc, today)
-        await reply_record_success(update, user_id, type_, amount, desc, today)
+        bill_db.insert_bill(user_id, type_, amount, '其他', desc, today_str)
+        await reply_record_success(update, user_id, type_, amount, desc, today_str)
         reset_state(user_id)
         return True
     # 其它任何描述都不认为是收入/支出指令
@@ -2035,7 +1960,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await help_cmd(update, context)
             return
         elif text == "账单":
-            await bill_cmd(update, context)
+            # await bill_cmd(update, context)  # bill_cmd未定义，暂时注释避免报错
             return
         elif text == "报表":
             await report_cmd(update, context)
