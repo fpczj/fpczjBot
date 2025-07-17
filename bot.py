@@ -523,6 +523,19 @@ user_timeouts = {}
 user_owner = {}  # 记录每个用户当前状态的 owner
 # 增加超时自动返回待命状态功能
 user_timer = {}
+
+# 授权到期提醒（每天检查一次）
+def remind_auth_expire():
+    now = time.time()
+    for chat_id in config.get("authorized", {}):
+        for uid in config["authorized"][chat_id]:
+            key = f"{chat_id}:{uid}"
+            expire = config.get("auth_expire", {}).get(key)
+            if expire and expire - now < 24*3600 and expire - now > 0:
+                # 到期前一天提醒管理员
+                # 这里假设有 send_admin_message(chat_id, msg) 工具函数
+                msg = f"⚠️ 用户 {uid} 在群 {chat_id} 的授权将于 {time.strftime('%Y-%m-%d %H:%M', time.localtime(expire))} 到期，请及时处理。"
+                send_admin_message(chat_id, msg)
 TIMEOUT_SECONDS = 5
 
 def reset_state(user_id):
@@ -936,7 +949,12 @@ async def handle_auth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config["auth_expire"] = {}
         config["auth_expire"][f"{chat_id}:{uid}"] = time.time() + days*24*3600
         save_config(config)
-        await update.message.reply_text(f"{username}已授权{days}天。\n授权时间到期后被授权人需要重新授权。")
+        expire_date = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time() + days*24*3600))
+        await update.message.reply_text(
+            f"✅ 用户 {username} 已成功授权 {days} 天！\n"
+            f"⏰ 到期时间：{expire_date}\n"
+            f"⚠️ 到期后需重新授权。"
+        )
     else:
         await update.message.reply_text("群组内无该用户。")
     reset_state(user_id)
@@ -1445,6 +1463,7 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
         else:
             d1 = parse_single_date(s, is_start=True)
             d2 = parse_single_date(s, is_start=False)
+
             return d1, d2
 
     def parse_single_date(s, is_start=True):
