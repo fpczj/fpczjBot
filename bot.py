@@ -535,14 +535,30 @@ def set_timeout(user_id):
 
 async def show_menu(update):
     menu = (
-        "欢迎使用记账机器人！\n\n"
+        "欢迎使用记账机器人！\n"
+        "\n"
         "可用指令：\n"
-        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
-        "2.输入“+或-金额 描述”为支出;\n\n"
-        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认；\n\n"
-        "4.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
+        "●输入“收入 金额”或“收入 金额 描述”为收入；\n"
+        "\n"
+        "● 输入“+或-金额 描述”为支出；\n"
+        "\n"
+        "●输入“账单”可按月份查询明细；\n"
+        "\n"
+        "●输入“报表”可按月份查询分类汇总；\n"
+        "\n"
+        "输入“查询”可查：\n"
+        "● “昨天”、“前天”、“今天”、“本月”、“上月”、“今年”；\n"
+        "\n"
+        "●“去年6月”、“去年3月”、“2024年5月”；\n"
+        "\n"
+        "●“2025年6月1至2025年7月31”（区间）；\n"
+        "\n"
+        "●“今天收入”、“本月支出”、“上月收入”\n"
+        "\n"
+        "如需帮助请回复“帮助”。"
     )
     await update.message.reply_text(menu)
+    reset_state(update.effective_user.id)
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -555,13 +571,43 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         if not (is_admin(user_id) or is_authorized(user_id, chat.id)):
             return
-    help_text = (
-        "1.直接输入“收入 金额”或“收入 金额 描述”为收入；\n\n"
-        "2.输入“+或-金额 描述”为支出；\n\n"
-        "3.支持自然语言记账，如“昨天买菜 50”“今天买菜 30元”等，需本人确认；\n\n"
-        "4.支持关键词快捷查询：如“今天收入”“本月支出”“上月收入”等。"
+    menu = (
+        "当前机器人支持的主要指令如下：\n"
+        "\n"
+        "记账指令（严格格式）\n"
+        "●收入 金额 描述\n"
+        "●支出 金额 描述\n"
+        "●+金额 描述\n"
+        "●-金额 描述\n"
+        "示例：\n"
+        "\n"
+        "查询与统计指令（关键词查询）\n"
+        "●今天收入\n"
+        "●今天支出\n"
+        "●本月收入\n"
+        "●本月支出\n"
+        "●7月、去年6月、去年、2024年 等灵活年月表达\n"
+        "●账单\n"
+        "●报表\n"
+        "●查询\n"
+        "\n"
+        "管理与辅助指令\n"
+        "●添加分类 描述=分类\n"
+        "●删除分类 描述\n"
+        "●查看分类\n"
+        "●添加错别字 错别词=正确词\n"
+        "●删除错别字 错别词\n"
+        "●查看错别字\n"
+        "●撤销\n"
+        "●常用描述\n"
+        "●清除\n"
+        "●返回\n"
+        "●开始\n"
+        "●帮助\n"
+        "●授权（仅管理员群组内使用）\n"
     )
-    await update.message.reply_text(help_text)
+    await update.message.reply_text(menu)
+    reset_state(update.effective_user.id)
     reset_state(user_id)
 
 async def bill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1044,18 +1090,15 @@ async def handle_income_month(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def reply_record_success(update, user_id, record_type, amount, desc, record_date):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute(
-        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? ORDER BY id ASC",
-        (str(user_id), record_type)
-    )
-    all_rows = c.fetchall()
-    rows = all_rows[-5:]
     today = date.today().strftime("%Y-%m-%d")
+    # 最近5笔当天支出/收入
     c.execute(
-        "SELECT COUNT(*) FROM bills WHERE user_id=? AND type=? AND date=?",
+        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND date=? ORDER BY id ASC",
         (str(user_id), record_type, today)
     )
-    today_count = c.fetchone()[0]
+    today_rows = c.fetchall()
+    rows = today_rows[-5:]
+    today_count = len(today_rows)
     c.execute(
         "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=?",
         (str(user_id), record_type, today)
@@ -1068,26 +1111,13 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
     month_total = c.fetchone()[0] or 0.0
     conn.close()
     def fmt_amt(val):
-        # 如实显示正负号
         return f"{val:.2f}"
 
-    # 记录成功行如实显示正负号
-    msg = f"记录成功：{fmt_amt(amount)}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}: (今天{'收入' if record_type=='income' else '支出'}:{today_count}笔)\n"
-    start_num = len(all_rows) - len(rows) + 1
+    msg = f"记录成功：{fmt_amt(amount)}，{desc}\n\n最近5笔{'收入' if record_type=='income' else '支出'}（今天{today_count}笔）:\n"
+    start_num = today_count - len(rows) + 1
     for i, row in enumerate(rows, start_num):
         amt_str = fmt_amt(row[0])
-        msg += f"{i}| {amt_str} | {row[1]} | {row[2]} |"
-        if row[3] != today:
-            msg += f" ({row[3]})"
-        msg += "\n"
-    # 统计当天、本月累计支出/收入：正负合计
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=?", (str(user_id), record_type, today))
-    day_total = c.fetchone()[0] or 0.0
-    c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?", (str(user_id), record_type, record_date[:7]))
-    month_total = c.fetchone()[0] or 0.0
-    conn.close()
+        msg += f"{i}| {amt_str} | {row[2]} |\n"
     if record_type == 'expense':
         msg += f"\n当天累计支出：{day_total:.2f}\n本月累计支出：{month_total:.2f}"
     else:
@@ -1257,12 +1287,14 @@ def parse_natural_language_record(text):
     return None
 # 根据描述内容自动分类
 def get_category(desc):
-    # 用户自定义分类优先
+    # 优先查用户自定义分类
     global category_map
-    if desc in category_map:
-        return category_map[desc]
+    for k, v in category_map.items():
+        if k in desc:
+            return v
     # 自动学习：如果历史上该描述多次归为同一类，则自动记忆
     import sqlite3
+    import difflib
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT category, COUNT(*) FROM bills WHERE description=? GROUP BY category ORDER BY COUNT(*) DESC", (desc,))
@@ -1270,21 +1302,35 @@ def get_category(desc):
     conn.close()
     if row and row[1] >= 2:
         return row[0]
-    # 关键词/模糊匹配
+    # 标准化常见描述自动归类，补充更多关键词
     category_keywords = {
-        '餐饮': ['买菜', 'maicai', 'mai cai', '午餐', '晚餐', '早餐', '饭', '餐饮', '外卖', '聚餐', '饮料', '奶茶', '水果', '零食'],
-        '生活': ['水电', 'shuifei', 'dianfei', '水费', '电费', '燃气', '物业', '生活', '日用品', '洗衣', '家政'],
-        '交通': ['公交', '地铁', '打车', '滴滴', '加油', '停车', '交通', '高铁', '火车', '飞机', '机票', 'jiaotong'],
-        '娱乐': ['电影', 'KTV', '游戏', '娱乐', '旅游', '门票', '聚会', 'yule'],
-        '学习': ['学费', '培训', '书', '教材', '学习', '考试', '课程', 'xuexi'],
-        '医疗': ['医院', '药', '医疗', '体检', '挂号', 'yiliao'],
-        '通讯': ['话费', '流量', '宽带', '通讯', '手机', 'huafei', 'tongxun'],
-        '房租': ['房租', '租金', 'fangzu'],
-        '购物': ['购物', '网购', '京东', '淘宝', '拼多多', '苏宁', 'gouwu', 'jingdong', 'taobao', 'pinduoduo', 'suining'],
-        '工资': ['工资', '薪水', '奖金', 'gongzi', 'jiangjin'],
+        '餐饮': ['买菜', 'maicai', 'mai cai', '午餐', '晚餐', '早餐', '饭', '餐饮', '外卖', '聚餐', '饮料', '奶茶', '水果', '零食', '面包', '牛奶', '火锅', '烧烤', '甜品', '蛋糕', '小吃', '自助', '酒', '啤酒', '咖啡', '茶'],
+        '生活': ['水电', 'shuifei', 'dianfei', '水费', '电费', '燃气', '物业', '生活', '日用品', '洗衣', '家政', '清洁', '垃圾', '纸巾', '洗发水', '沐浴露', '牙膏', '牙刷', '洗手液', '消毒', '修理', '搬家', '快递', '邮费'],
+        '交通': ['公交', '地铁', '打车', '滴滴', '加油', '停车', '交通', '高铁', '火车', '飞机', '机票', 'jiaotong', '出租', '共享单车', '摩托', '汽车', '车票', '高速', 'ETC', '驾照', '违章'],
+        '娱乐': ['电影', 'KTV', '游戏', '娱乐', '旅游', '门票', '聚会', 'yule', '唱歌', '演出', '展览', '游乐园', '剧本杀', '桌游', '漫画', '小说', '视频会员', '音乐', '直播', '打赏'],
+        '学习': ['学费', '培训', '书', '教材', '学习', '考试', '课程', 'xuexi', '讲座', '网课', '辅导', '证书', '报名费', '论文', '资料', '文具', '图书馆'],
+        '医疗': ['医院', '药', '医疗', '体检', '挂号', 'yiliao', '诊所', '疫苗', '医保', '健康', '理疗', '牙科', '眼科', '药店', '处方', '手术', '住院', '护理', '康复'],
+        '通讯': ['话费', '流量', '宽带', '通讯', '手机', 'huafei', 'tongxun', '网络', 'SIM卡', '路由器', '电话', '短信', '固话'],
+        '住房': ['房租', '租金', 'fangzu', '水费', '电费', '物业', '燃气', '房贷', '买房', '装修', '家居', '中介费', '押金', '租房', '购房', '房产税'],
+        '购物': ['购物', '网购', '京东', '淘宝', '拼多多', '苏宁', 'gouwu', 'jingdong', 'taobao', 'pinduoduo', 'suining', '超市', '衣服', '鞋', '化妆品', '美妆', '数码', '手机', '电脑', '家电', '家居', '家纺', '厨具', '母婴', '宠物', '箱包', '饰品', '玩具', '运动服', '运动鞋', '眼镜', '手表', '家装', '灯具', '窗帘', '床上用品'],
+        '工资': ['工资', '薪水', '奖金', 'gongzi', 'jiangjin', '兼职', '转账', '津贴', '补贴', '报酬', '劳务', '薪酬', '年终奖', '提成'],
+        '收入': ['红包', '转账', '奖金', '工资', '兼职', '理财收益', '投资收益', '分红', '股息', '报销', '退款', '返现', '奖励', '补助', '津贴', '补贴'],
+        '母婴': ['母婴', '奶粉', '尿不湿', '婴儿', '宝宝', '孕妇', '儿童', '玩具', '童装', '早教', '辅食', '婴儿车', '婴儿床', '孕检', '产检'],
+        '宠物': ['宠物', '猫', '狗', '宠物粮', '宠物用品', '疫苗', '宠物医院', '猫砂', '狗粮', '宠物美容', '宠物洗澡', '宠物玩具'],
+        '保险': ['保险', '保费', '车险', '健康险', '意外险', '寿险', '医保', '商业险', '保险理赔', '保险产品', '保险公司'],
+        '投资': ['投资', '理财', '基金', '股票', '证券', '债券', '黄金', '分红', '股息', '收益', '定投', '买入', '卖出', '开户', '理财产品', '投资账户'],
+        '教育': ['教育', '学费', '培训', '课程', '教材', '考试', '讲座', '网课', '辅导', '证书', '报名费', '论文', '资料', '文具', '图书馆', '留学', '学杂费'],
+        '健康': ['健康', '健身', '运动', '理疗', '体检', '医疗', '瑜伽', '跑步', '健身房', '按摩', '营养', '健康管理', '体脂', '体重', '健康咨询'],
+        '运动': ['运动', '健身', '瑜伽', '跑步', '游泳', '球类', '健身房', '器材', '运动鞋', '运动服', '羽毛球', '篮球', '足球', '乒乓球', '网球', '健身卡', '运动会员'],
+        '数码': ['数码', '手机', '电脑', '平板', '耳机', '相机', '配件', '智能设备', '充电器', 'U盘', '硬盘', '鼠标', '键盘', '显示器', '路由器', '智能手表'],
+        '家居': ['家居', '家具', '家纺', '厨具', '装修', '家电', '装饰', '收纳', '灯具', '窗帘', '床上用品', '地毯', '餐具', '清洁用品', '家政服务'],
+        '美妆': ['美妆', '化妆品', '护肤', '口红', '面膜', '香水', '美容', '美发', '美甲', '洗面奶', '爽肤水', '乳液', '粉底', '睫毛膏', '眼影', '腮红', '防晒'],
+        '旅游': ['旅游', '机票', '酒店', '门票', '景点', '旅行', '民宿', '跟团游', '自由行', '签证', '导游', '租车', '行程', '旅游保险'],
+        '捐赠': ['捐赠', '慈善', '公益', '捐款', '救助', '志愿者', '善款', '捐物'],
+        '礼品': ['礼品', '礼物', '赠送', '收礼', '送礼', '礼金', '礼盒', '贺卡', '纪念品'],
+        '维修': ['维修', '修理', '保养', '维护', '修车', '修家电', '修手机', '修电脑', '修家具', '修水管', '修电路'],
         '其他': []
     }
-    import difflib
     desc_lower = desc.lower()
     for cat, keywords in category_keywords.items():
         for k in keywords:
@@ -1984,7 +2030,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if text == "开始":
             await show_menu(update)
-            reset_state(user_id)
             return
         if text == "帮助":
             await help_cmd(update, context)
