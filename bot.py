@@ -608,7 +608,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "●开始\n"
         "●帮助\n"
         "●授权（仅管理员群组内使用）\n"
-        "呈现后机器人返回待命状态"
     )
     await update.message.reply_text(menu)
     reset_state(update.effective_user.id)
