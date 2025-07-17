@@ -941,20 +941,32 @@ async def handle_auth_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = load_users()
     if username in users:
         uid = str(users[username])
-        if chat_id not in config["authorized"]:
-            config["authorized"][chat_id] = []
-        if uid not in config["authorized"][chat_id]:
-            config["authorized"][chat_id].append(uid)
-        if "auth_expire" not in config:
-            config["auth_expire"] = {}
-        config["auth_expire"][f"{chat_id}:{uid}"] = time.time() + days*24*3600
-        save_config(config)
-        expire_date = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time() + days*24*3600))
-        await update.message.reply_text(
-            f"✅ 用户 {username} 已成功授权 {days} 天！\n"
-            f"⏰ 到期时间：{expire_date}\n"
-            f"⚠️ 到期后需重新授权。"
-        )
+        key = f"{chat_id}:{uid}"
+        now = time.time()
+        expire = config.get("auth_expire", {}).get(key)
+        if expire and expire > now:
+            left_days = int((expire - now) // (24*3600)) + 1
+            expire_date = time.strftime('%Y-%m-%d %H:%M', time.localtime(expire))
+            await update.message.reply_text(
+                f"⚠️ 用户 {username} 已授权，剩余 {left_days} 天。\n"
+                f"⏰ 到期时间：{expire_date}\n"
+                f"如需延长请重新授权。"
+            )
+        else:
+            if chat_id not in config["authorized"]:
+                config["authorized"][chat_id] = []
+            if uid not in config["authorized"][chat_id]:
+                config["authorized"][chat_id].append(uid)
+            if "auth_expire" not in config:
+                config["auth_expire"] = {}
+            config["auth_expire"][key] = now + days*24*3600
+            save_config(config)
+            expire_date = time.strftime('%Y-%m-%d %H:%M', time.localtime(now + days*24*3600))
+            await update.message.reply_text(
+                f"✅ 用户 {username} 已成功授权 {days} 天！\n"
+                f"⏰ 到期时间：{expire_date}\n"
+                f"⚠️ 到期后需重新授权。"
+            )
     else:
         await update.message.reply_text("群组内无该用户。")
     reset_state(user_id)
@@ -1892,11 +1904,12 @@ async def has_permission(user_id, chat_type, chat_id, text, state):
             return False     # 非管理员私聊无权限
     else:
         if is_admin(user_id):
-            if state == WAITING and text != "授权":
-                return False # 群组内管理员仅能授权
-            return True
+            # 群组管理员只能授权，不能记账和其他操作
+            if text == "授权":
+                return True
+            return False
         elif is_authorized(user_id, chat_id):
-            if state == WAITING and text == "授权":
+            if text == "授权":
                 return False # 被授权人群组内禁止“授权”
             return True      # 其它指令全部允许
         else:
