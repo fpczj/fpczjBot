@@ -365,6 +365,7 @@ class BillDB:
             CREATE TABLE IF NOT EXISTS bills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT,
+                chat_id TEXT,
                 type TEXT,
                 amount REAL,
                 category TEXT,
@@ -378,8 +379,8 @@ class BillDB:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute(
-            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
-            (str(user_id), type_, amount, category, desc, date)
+            "INSERT INTO bills (user_id, chat_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (str(user_id), str(chat_id), type_, amount, category, desc, date)
         )
         bill_id = c.lastrowid
         conn.commit()
@@ -388,8 +389,8 @@ class BillDB:
     def fetch_bills(self, user_id, type_=None, date=None, month=None):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        sql = "SELECT amount, category, description, date FROM bills WHERE user_id=?"
-        params = [str(user_id)]
+        sql = "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=?"
+        params = [str(user_id), str(chat_id)]
         if type_:
             sql += " AND type=?"
             params.append(type_)
@@ -407,8 +408,8 @@ class BillDB:
     def sum_bills(self, user_id, type_, date=None, month=None):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        sql = "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=?"
-        params = [str(user_id), type_]
+        sql = "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=?"
+        params = [str(user_id), str(chat_id), type_]
         if date:
             sql += " AND date=?"
             params.append(date)
@@ -423,9 +424,9 @@ class BillDB:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         if date:
-            c.execute("DELETE FROM bills WHERE user_id=? AND date=?", (str(user_id), date))
+            c.execute("DELETE FROM bills WHERE user_id=? AND chat_id=? AND date=?", (str(user_id), str(chat_id), date))
         else:
-            c.execute("DELETE FROM bills WHERE user_id=?", (str(user_id),))
+            c.execute("DELETE FROM bills WHERE user_id=? AND chat_id=?", (str(user_id), str(chat_id)))
         conn.commit()
         conn.close()
 
@@ -669,8 +670,8 @@ async def handle_bill_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%m', date)=? ORDER BY id ASC",
-        (str(user_id), bill_type, f"{month:02d}")
+        "SELECT id, amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%m', date)=? ORDER BY id ASC",
+        (str(user_id), str(chat_id), bill_type, f"{month:02d}")
     )
     rows = c.fetchall()
     conn.close()
@@ -709,8 +710,8 @@ async def handle_report_month(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT type, category, SUM(amount) FROM bills WHERE user_id=? AND strftime('%m', date)=? GROUP BY type, category",
-        (str(user_id), f"{month:02d}")
+        "SELECT type, category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND strftime('%m', date)=? GROUP BY type, category",
+        (str(user_id), str(chat_id), f"{month:02d}")
     )
     rows = c.fetchall()
     conn.close()
@@ -744,12 +745,12 @@ async def handle_clear_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if text == "1":
-        c.execute("DELETE FROM bills WHERE user_id=?", (str(user_id),))
+        c.execute("DELETE FROM bills WHERE user_id=? AND chat_id=?", (str(user_id), str(chat_id)))
         conn.commit()
         await update.message.reply_text("您已清除所有记录。")
     elif text == "2":
         today = date.today().strftime("%Y-%m-%d")
-        c.execute("DELETE FROM bills WHERE user_id=? AND date=?", (str(user_id), today))
+        c.execute("DELETE FROM bills WHERE user_id=? AND chat_id=? AND date=?", (str(user_id), str(chat_id), today))
         conn.commit()
         await update.message.reply_text("您已清除今天记录。")
     else:
@@ -855,13 +856,13 @@ async def handle_query_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date BETWEEN ? AND ?",
-        (str(user_id), qtype, start, end)
+        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date BETWEEN ? AND ?",
+        (str(user_id), str(chat_id), qtype, start, end)
     )
     total = c.fetchone()[0]
     c.execute(
-        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND date BETWEEN ? AND ? ORDER BY date ASC",
-        (str(user_id), qtype, start, end)
+        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date BETWEEN ? AND ? ORDER BY date ASC",
+        (str(user_id), str(chat_id), qtype, start, end)
     )
     rows = c.fetchall()
     conn.close()
@@ -1031,13 +1032,13 @@ async def handle_income_month(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%m', date)=? ORDER BY id ASC",
-        (str(user_id), query_type, f"{month:02d}")
+        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%m', date)=? ORDER BY id ASC",
+        (str(user_id), str(chat_id), query_type, f"{month:02d}")
     )
     rows = c.fetchall()
     c.execute(
-        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%m', date)=?",
-        (str(user_id), query_type, f"{month:02d}")
+        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%m', date)=?",
+        (str(user_id), str(chat_id), query_type, f"{month:02d}")
     )
     total = c.fetchone()[0] or 0.0
     conn.close()
@@ -1058,20 +1059,20 @@ async def reply_record_success(update, user_id, record_type, amount, desc, recor
     today = date.today().strftime("%Y-%m-%d")
     # 最近5笔当天支出/收入
     c.execute(
-        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND date=? ORDER BY id ASC",
-        (str(user_id), record_type, today)
+        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date=? ORDER BY id ASC",
+        (str(user_id), str(chat_id), record_type, today)
     )
     today_rows = c.fetchall()
     rows = today_rows[-5:]
     today_count = len(today_rows)
     c.execute(
-        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=?",
-        (str(user_id), record_type, today)
+        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date=?",
+        (str(user_id), str(chat_id), record_type, today)
     )
     day_total = c.fetchone()[0] or 0.0
     c.execute(
-        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-        (str(user_id), record_type, record_date[:7])
+        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+        (str(user_id), str(chat_id), record_type, record_date[:7])
     )
     month_total = c.fetchone()[0] or 0.0
     conn.close()
@@ -1445,8 +1446,8 @@ async def handle_nl_record_confirm(update: Update, context: ContextTypes.DEFAULT
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute(
-            "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
-            (str(user_id), rec["type"], rec["amount"], rec["category"], rec["description"], rec["date"])
+            "INSERT INTO bills (user_id, chat_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
+            (str(user_id), str(chat_id), rec["type"], rec["amount"], rec["category"], rec["description"], rec["date"])
         )
         bill_id = c.lastrowid
         user_last_bill_id[user_id] = bill_id
@@ -1600,13 +1601,13 @@ async def quick_keyword_query(update, user_id, text):
         msg = ""
         if qtype:
             c.execute(
-                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-                (str(user_id), qtype, qmonth)
+                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                (str(user_id), str(chat_id), qtype, qmonth)
             )
             rows = c.fetchall()
             c.execute(
-                "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-                (str(user_id), qtype, qmonth)
+                "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+                (str(user_id), str(chat_id), qtype, qmonth)
             )
             total = c.fetchone()[0] or 0.0
             msg += f"{year}年{month}月{qtype}明细：\n"
@@ -1616,13 +1617,13 @@ async def quick_keyword_query(update, user_id, text):
         else:
             # 收入
             c.execute(
-                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-                (str(user_id), qmonth)
+                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type='income' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                (str(user_id), str(chat_id), qmonth)
             )
             rows = c.fetchall()
             c.execute(
-                "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=?",
-                (str(user_id), qmonth)
+                "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='income' AND strftime('%Y-%m', date)=?",
+                (str(user_id), str(chat_id), qmonth)
             )
             total_income = c.fetchone()[0] or 0.0
             msg += f"{year}年{month}月收入明细：\n"
@@ -1631,13 +1632,13 @@ async def quick_keyword_query(update, user_id, text):
             msg += f"{year}年{month}月总收入：{total_income:.2f}\n"
             # 支出
             c.execute(
-                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-                (str(user_id), qmonth)
+                "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type='expense' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                (str(user_id), str(chat_id), qmonth)
             )
             rows = c.fetchall()
             c.execute(
-                "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?",
-                (str(user_id), qmonth)
+                "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='expense' AND strftime('%Y-%m', date)=?",
+                (str(user_id), str(chat_id), qmonth)
             )
             total_expense = c.fetchone()[0] or 0.0
             msg += f"{year}年{month}月支出明细：\n"
@@ -1670,13 +1671,13 @@ async def quick_keyword_query(update, user_id, text):
                 # 仍然视为月份查询，展示明细和汇总
                 if qtype:
                     c.execute(
-                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-                        (str(user_id), qtype, qmonth)
+                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                        (str(user_id), str(chat_id), qtype, qmonth)
                     )
                     rows = c.fetchall()
                     c.execute(
-                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-                        (str(user_id), qtype, qmonth)
+                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+                        (str(user_id), str(chat_id), qtype, qmonth)
                     )
                     total = c.fetchone()[0] or 0.0
                     msg += f"{year}年{int(month)}月{qtype}明细：\n"
@@ -1686,13 +1687,13 @@ async def quick_keyword_query(update, user_id, text):
                 else:
                     # 收入
                     c.execute(
-                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-                        (str(user_id), qmonth)
+                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type='income' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                        (str(user_id), str(chat_id), qmonth)
                     )
                     rows = c.fetchall()
                     c.execute(
-                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=?",
-                        (str(user_id), qmonth)
+                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='income' AND strftime('%Y-%m', date)=?",
+                        (str(user_id), str(chat_id), qmonth)
                     )
                     total_income = c.fetchone()[0] or 0.0
                     msg += f"{year}年{int(month)}月收入明细：\n"
@@ -1701,13 +1702,13 @@ async def quick_keyword_query(update, user_id, text):
                     msg += f"{year}年{int(month)}月总收入：{total_income:.2f}\n"
                     # 支出
                     c.execute(
-                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-                        (str(user_id), qmonth)
+                        "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type='expense' AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+                        (str(user_id), str(chat_id), qmonth)
                     )
                     rows = c.fetchall()
                     c.execute(
-                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?",
-                        (str(user_id), qmonth)
+                        "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='expense' AND strftime('%Y-%m', date)=?",
+                        (str(user_id), str(chat_id), qmonth)
                     )
                     total_expense = c.fetchone()[0] or 0.0
                     msg += f"{year}年{int(month)}月支出明细：\n"
@@ -1722,8 +1723,8 @@ async def quick_keyword_query(update, user_id, text):
             # 超过31天，分类汇总
             if qtype:
                 c.execute(
-                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
-                    (str(user_id), qtype, qmonth)
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(chat_id), qtype, qmonth)
                 )
                 rows = c.fetchall()
                 msg += f"{year}年{int(month)}月{qtype}分类汇总：\n"
@@ -1732,8 +1733,8 @@ async def quick_keyword_query(update, user_id, text):
             else:
                 # 收入
                 c.execute(
-                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
-                    (str(user_id), qmonth)
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='income' AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(chat_id), qmonth)
                 )
                 rows = c.fetchall()
                 msg += f"{year}年{int(month)}月收入分类汇总：\n"
@@ -1741,8 +1742,8 @@ async def quick_keyword_query(update, user_id, text):
                     msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
                 # 支出
                 c.execute(
-                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
-                    (str(user_id), qmonth)
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='expense' AND strftime('%Y-%m', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(chat_id), qmonth)
                 )
                 rows = c.fetchall()
                 msg += f"{year}年{int(month)}月支出分类汇总：\n"
@@ -1752,8 +1753,8 @@ async def quick_keyword_query(update, user_id, text):
             # 去年全年等，直接分类汇总
             if qtype:
                 c.execute(
-                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
-                    (str(user_id), qtype, str(year))
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(chat_id), qtype, str(year))
                 )
                 rows = c.fetchall()
                 msg += f"{year}年{qtype}分类汇总：\n"
@@ -1762,8 +1763,8 @@ async def quick_keyword_query(update, user_id, text):
             else:
                 # 收入
                 c.execute(
-                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='income' AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
-                    (str(user_id), str(year))
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='income' AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(chat_id), str(year))
                 )
                 rows = c.fetchall()
                 msg += f"{year}年收入分类汇总：\n"
@@ -1771,8 +1772,8 @@ async def quick_keyword_query(update, user_id, text):
                     msg += f"{i} | {row[0]} | {row[1]:.2f}\n"
                 # 支出
                 c.execute(
-                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND type='expense' AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
-                    (str(user_id), str(year))
+                    "SELECT category, SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type='expense' AND strftime('%Y', date)=? GROUP BY category ORDER BY SUM(amount) DESC",
+                    (str(user_id), str(chat_id), str(year))
                 )
                 rows = c.fetchall()
                 msg += f"{year}年支出分类汇总：\n"
@@ -1789,13 +1790,13 @@ async def quick_keyword_query(update, user_id, text):
         qtype = "income"
         qdate = today.strftime("%Y-%m-%d")
         c.execute(
-            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND date=? ORDER BY id ASC",
-            (str(user_id), qtype, qdate)
+            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date=? ORDER BY id ASC",
+            (str(user_id), str(chat_id), qtype, qdate)
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=?", 
-            (str(user_id), qtype, qdate)
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date=?", 
+            (str(user_id), str(chat_id), qtype, qdate)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"今天收入明细：\n"
@@ -1806,13 +1807,13 @@ async def quick_keyword_query(update, user_id, text):
         qtype = "expense"
         qdate = today.strftime("%Y-%m-%d")
         c.execute(
-            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND date=? ORDER BY id ASC",
-            (str(user_id), qtype, qdate)
+            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date=? ORDER BY id ASC",
+            (str(user_id), str(chat_id), qtype, qdate)
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND date=?",
-            (str(user_id), qtype, qdate)
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND date=?",
+            (str(user_id), str(chat_id), qtype, qdate)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"今天支出明细：\n"
@@ -1823,13 +1824,13 @@ async def quick_keyword_query(update, user_id, text):
         qtype = "income"
         qmonth = today.strftime("%Y-%m")
         rows = c.execute(
-            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-            (str(user_id), qtype, qmonth)
+            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+            (str(user_id), str(chat_id), qtype, qmonth)
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-            (str(user_id), qtype, qmonth)
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+            (str(user_id), str(chat_id), qtype, qmonth)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"本月收入明细：\n"
@@ -1840,13 +1841,13 @@ async def quick_keyword_query(update, user_id, text):
         qtype = "expense"
         qmonth = today.strftime("%Y-%m")
         rows = c.execute(
-            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-            (str(user_id), qtype, qmonth)
+            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+            (str(user_id), str(chat_id), qtype, qmonth)
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-            (str(user_id), qtype, qmonth)
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+            (str(user_id), str(chat_id), qtype, qmonth)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"本月支出明细：\n"
@@ -1857,13 +1858,13 @@ async def quick_keyword_query(update, user_id, text):
         qtype = "income"
         last_month = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
         c.execute(
-            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-            (str(user_id), qtype, last_month)
+            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+            (str(user_id), str(chat_id), qtype, last_month)
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-            (str(user_id), qtype, last_month)
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+            (str(user_id), str(chat_id), qtype, last_month)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"上月收入明细：\n"
@@ -1874,13 +1875,13 @@ async def quick_keyword_query(update, user_id, text):
         qtype = "expense"
         last_month = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
         rows = c.execute(
-            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
-            (str(user_id), qtype, last_month)
+            "SELECT amount, category, description, date FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=? ORDER BY id ASC",
+            (str(user_id), str(chat_id), qtype, last_month)
         )
         rows = c.fetchall()
         c.execute(
-            "SELECT SUM(amount) FROM bills WHERE user_id=? AND type=? AND strftime('%Y-%m', date)=?",
-            (str(user_id), qtype, last_month)
+            "SELECT SUM(amount) FROM bills WHERE user_id=? AND chat_id=? AND type=? AND strftime('%Y-%m', date)=?",
+            (str(user_id), str(chat_id), qtype, last_month)
         )
         total = c.fetchone()[0] or 0.0
         msg = f"上月支出明细：\n"
@@ -1896,24 +1897,36 @@ async def quick_keyword_query(update, user_id, text):
 def has_permission(user_id, chat_type, chat_id, text, state):
     # 管理员
     if chat_type == "private":
+        # 管理员（机器人拥有者）私聊拥有除授权外所有权限
         if is_admin(user_id):
-            if state == WAITING and text == "授权":
-                return False  # 管理员私聊禁止“授权”
-            return True      # 其它全部允许
-        else:
-            return False     # 非管理员私聊无权限
+            if text == "授权":
+                return False
+            return True
+        # 被授权人和未授权用户私聊无权限
+        return False
     else:
+        # 群组内管理员只能授权
         if is_admin(user_id):
-            # 群组管理员只能授权，不能记账和其他操作
             if text == "授权":
                 return True
             return False
+        # 被授权人仅在群组内拥有除授权外所有权限
         elif is_authorized(user_id, chat_id):
             if text == "授权":
-                return False # 被授权人群组内禁止“授权”
-            return True      # 其它指令全部允许
-        else:
-            return False     # 群组内未授权人无任何权限
+                return False
+            return True
+        # 未授权用户无任何指令功能
+        return False
+
+# 在handle_message函数中，所有账单相关操作前补充chat_id变量
+# 例如：
+# chat_id = str(update.effective_chat.id)
+# c.execute(..., (str(user_id), chat_id, ...))
+
+# 在所有账单相关函数/命令前补充chat_id变量
+# 例如：
+# chat_id = str(update.effective_chat.id)
+# c.execute(..., (str(user_id), chat_id, ...))
 
 # 在 handle_message 里这样用：
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1941,8 +1954,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute(
-                "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, 'income', ?, ?, ?, ?)",
-                (str(user_id), amount, "其他", desc, today_str)
+                "INSERT INTO bills (user_id, chat_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
+                (str(user_id), str(chat_id), 'income', amount, "其他", desc, today_str)
             )
             conn.commit()
             conn.close()
@@ -1956,8 +1969,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute(
-                "INSERT INTO bills (user_id, type, amount, category, description, date) VALUES (?, 'expense', ?, ?, ?, ?)",
-                (str(user_id), amount, "其他", desc, today_str)
+                "INSERT INTO bills (user_id, chat_id, type, amount, category, description, date) VALUES (?, ?, ?, ?, ?, ?)",
+                (str(user_id), str(chat_id), 'expense', amount, "其他", desc, today_str)
             )
             conn.commit()
             conn.close()
