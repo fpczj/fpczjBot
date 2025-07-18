@@ -290,7 +290,6 @@ async def report_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             row = c.fetchone()
             conn.close()
             if not row:
-                await update.message.reply_text("你未被授权或授权已过期，请联系群主授权。")
                 return ConversationHandler.END
     else:
         return ConversationHandler.END
@@ -593,7 +592,6 @@ async def add_bill(update: Update, context: ContextTypes.DEFAULT_TYPE):
             row = c.fetchone()
             conn.close()
             if not row:
-                await update.message.reply_text("你未被授权或授权已过期，请联系群主授权。")
                 return
         else:
             return
@@ -649,6 +647,21 @@ async def add_bill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"发生错误：{e}\n请联系管理员。\n调试信息：\n{err}")
 
 async def income_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    user = update.effective_user
+    if chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
+        if user.id == OWNER_ID:
+            return
+        if not user.username:
+            return
+        username = user.username.lower()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM authorizations WHERE chat_id=? AND username=? AND end_date>=?", (chat.id, username, date.today().strftime('%Y-%m-%d')))
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return
     user_id = str(update.effective_user.id)
     today_str = date.today().strftime('%Y-%m-%d')
     month_str = date.today().strftime('%Y-%m')
@@ -674,6 +687,21 @@ async def income_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def expense_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    user = update.effective_user
+    if chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
+        if user.id == OWNER_ID:
+            return
+        if not user.username:
+            return
+        username = user.username.lower()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM authorizations WHERE chat_id=? AND username=? AND end_date>=?", (chat.id, username, date.today().strftime('%Y-%m-%d')))
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return
     user_id = str(update.effective_user.id)
     today_str = date.today().strftime('%Y-%m-%d')
     month_str = date.today().strftime('%Y-%m')
