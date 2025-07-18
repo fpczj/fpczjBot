@@ -108,7 +108,6 @@ async def delete_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         row = c.fetchone()
         conn.close()
         if not row:
-            await update.message.reply_text("你未被授权或授权已过期，请联系群主授权。")
             return ConversationHandler.END
     else:
         return ConversationHandler.END
@@ -148,7 +147,6 @@ async def delete_wait_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
         row = c.fetchone()
         conn.close()
         if not row:
-            await update.message.reply_text("你未被授权或授权已过期，请联系群主授权。")
             return ConversationHandler.END
     else:
         return ConversationHandler.END
