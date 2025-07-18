@@ -5,7 +5,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram.constants import ChatType
 from datetime import datetime, date, timedelta
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 import os
 
@@ -958,6 +958,7 @@ def save_group_ids(group_ids):
         for gid in group_ids:
             f.write(f'{gid}\n')
 
+
 def main():
     init_db()
     app = Application.builder().token('7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM').build()
@@ -971,7 +972,7 @@ def main():
         cancel_authorization
     ))
     # 启动定时任务
-    scheduler = AsyncIOScheduler()
+    scheduler = BackgroundScheduler()
     scheduler.add_job(lambda: asyncio.create_task(check_authorization_expiry(app)), 'cron', hour=8, minute=0)  # 每天8点检查
     scheduler.start()
     # 启动时加载群组ID
