@@ -1,2 +1,2 @@
 python-telegram-bot==22.2
-openpyxl
+apscheduler==3.10.4
