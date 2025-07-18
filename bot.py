@@ -567,7 +567,7 @@ async def add_bill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_raw = update.message.text.strip()
         # 若整行为关键词或以关键词开头（如“账单 1”），均排除
         import re
-        if any(re.fullmatch(k, text_raw) or re.match(f'^{k}(\s|$)', text_raw) for k in exclude_keywords):
+        if any(re.fullmatch(k, text_raw) or re.match(f'^{k}(\\s|$)', text_raw) for k in exclude_keywords):
             # 彻底避免对话流程关键词被add_bill兜底时出现格式错误提示，直接return
             return
         chat = update.effective_chat
