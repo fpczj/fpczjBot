@@ -916,7 +916,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='支出' AND date LIKE ?", (user_id, f'{ym}%'))
         expense_sum = c.fetchone()[0] or 0.0
         conn.close()
-        msg = f"{label_fmt}收入明细（共{len(income_rows)}笔）：\n"
+        msg = f"{label_fmt}收入明细【共{len(income_rows)}笔】：\n"
         if income_rows:
             total = len(income_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), income_rows):
@@ -926,7 +926,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "\n"
         msg += f"{label_fmt}累计收入：{income_sum:.2f}\n"
         msg += "\n"
-        msg += f"{label_fmt}支出明细（共{len(expense_rows)}笔）：\n"
+        msg += f"{label_fmt}支出明细【共{len(expense_rows)}笔】：\n"
         if expense_rows:
             total = len(expense_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), expense_rows):
@@ -952,7 +952,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='支出' AND date = ?", (user_id, date_eq))
         expense_sum = c.fetchone()[0] or 0.0
         conn.close()
-        msg = f"{label_fmt}收入明细（共{len(income_rows)}笔）：\n"
+        msg = f"{label_fmt}收入明细【共{len(income_rows)}笔】：\n"
         if income_rows:
             total = len(income_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), income_rows):
@@ -962,7 +962,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "\n"
         msg += f"{label_fmt}累计收入：{income_sum:.2f}\n"
         msg += "\n"
-        msg += f"{label_fmt}支出明细（共{len(expense_rows)}笔）：\n"
+        msg += f"{label_fmt}支出明细【共{len(expense_rows)}笔】：\n"
         if expense_rows:
             total = len(expense_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), expense_rows):
@@ -988,7 +988,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='支出' AND date LIKE ?", (user_id, f'{month_str}%'))
         expense_sum = c.fetchone()[0] or 0.0
         conn.close()
-        msg = f"{label_fmt}收入明细（共{len(income_rows)}笔）：\n"
+        msg = f"{label_fmt}收入明细【共{len(income_rows)}笔】：\n"
         if income_rows:
             total = len(income_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), income_rows):
@@ -998,7 +998,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "\n"
         msg += f"{label_fmt}累计收入：{income_sum:.2f}\n"
         msg += "\n"
-        msg += f"{label_fmt}支出明细（共{len(expense_rows)}笔）：\n"
+        msg += f"{label_fmt}支出明细【共{len(expense_rows)}笔】：\n"
         if expense_rows:
             total = len(expense_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), expense_rows):
@@ -1019,7 +1019,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='支出' AND date=?", (user_id, date_str))
         expense_sum = c.fetchone()[0] or 0.0
         conn.close()
-        msg = f"{label}收入明细（共{len(income_rows)}笔）：\n"
+        msg = f"{label}收入明细【共{len(income_rows)}笔】：\n"
         if income_rows:
             total = len(income_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), income_rows):
@@ -1029,7 +1029,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "\n"
         msg += f"{label}累计收入：{income_sum:.2f}\n"
         msg += "\n"
-        msg += f"{label}支出明细（共{len(expense_rows)}笔）：\n"
+        msg += f"{label}支出明细【共{len(expense_rows)}笔】：\n"
         if expense_rows:
             total = len(expense_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), expense_rows):
@@ -1054,7 +1054,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='支出' AND date LIKE ?", (user_id, f'{y}-%'))
         expense_sum = c.fetchone()[0] or 0.0
         conn.close()
-        msg = f"{label_fmt}收入明细（共{len(income_rows)}笔）：\n"
+        msg = f"{label_fmt}收入明细【共{len(income_rows)}笔】：\n"
         if income_rows:
             total = len(income_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), income_rows):
@@ -1064,7 +1064,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "\n"
         msg += f"{label_fmt}累计收入：{income_sum:.2f}\n"
         msg += "\n"
-        msg += f"{label_fmt}支出明细（共{len(expense_rows)}笔）：\n"
+        msg += f"{label_fmt}支出明细【共{len(expense_rows)}笔】：\n"
         if expense_rows:
             total = len(expense_rows)
             for idx, (amt, desc) in zip(range(total, 0, -1), expense_rows):
