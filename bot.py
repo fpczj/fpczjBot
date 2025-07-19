@@ -181,17 +181,20 @@ async def delete_wait_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c = conn.cursor()
     if kind == 'yearmonth':
         date_like = f'{val}%'
+        c.execute("SELECT id, amount, description, date FROM bills WHERE user_id=? AND date LIKE ? ORDER BY date DESC, id DESC", (user_id, date_like))
     elif kind == 'month':
         date_like = f'{year}-{val}%'
+        c.execute("SELECT id, amount, description, date FROM bills WHERE user_id=? AND date LIKE ? ORDER BY date DESC, id DESC", (user_id, date_like))
     elif kind == 'year':
         date_like = f'{val}-%'
+        c.execute("SELECT id, amount, description, date FROM bills WHERE user_id=? AND date LIKE ? ORDER BY date DESC, id DESC", (user_id, date_like))
     elif kind == 'day':
         # 只查本年
-        date_like = f'{year}-{val}'
+        date_eq = f'{year}-{val}'
+        c.execute("SELECT id, amount, description, date FROM bills WHERE user_id=? AND date = ? ORDER BY date DESC, id DESC", (user_id, date_eq))
     else:
         await update.message.reply_text("输入格式错误")
-        return DELETE_WAIT_DATE
-    c.execute("SELECT id, amount, description, date FROM bills WHERE user_id=? AND date LIKE ? ORDER BY date DESC, id DESC", (user_id, date_like))
+        return ConversationHandler.END
     rows = c.fetchall()
     conn.close()
     if not rows:
@@ -968,7 +971,7 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     else:
         await update.message.reply_text("输入格式错误")
-        return BILL_WAIT_DATE
+        return ConversationHandler.END
 
 import os
 GROUP_IDS_FILE = 'group_ids.txt'
@@ -1088,7 +1091,7 @@ async def show_pretty_help_menu(update: Update, context: ContextTypes.DEFAULT_TY
         "- 群组内账单隔离，每人只能操作自己的账单\n"
         "- 未授权成员无法在群组内使用业务功能\n"
         "- 输入格式错误有统一提示\n\n"
-        "如有疑问请联系群主。"
+        "如有疑问请联系：@Daddywu999"
     )
     await update.message.reply_text(msg)
 
