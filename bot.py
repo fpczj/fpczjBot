@@ -528,12 +528,9 @@ async def report_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = f"{label_fmt}\n\n"
     # 收入部分
     msg += f"收入【共{income_total}笔】\n"
-    category_order = ['住房', '餐饮', '购物', '娱乐', '日常', '交通', '医疗', '学习', '通讯', '转账', '其他']
     if income_cat:
-        for cat in category_order:
-            if cat in income_cat:
-                v = income_cat[cat]
-                msg += f"{cat}：{v['sum']:.2f}【{v['count']}笔】\n"
+        for cat, v in income_cat.items():
+            msg += f"{cat}：{v['sum']:.2f}【{v['count']}笔】\n"
     if income_uncat:
         msg += "未分类收入明细：\n"
         for amt, desc in income_uncat:
@@ -546,10 +543,8 @@ async def report_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 支出部分
     msg += f"支出【共{expense_total}笔】\n"
     if expense_cat:
-        for cat in category_order:
-            if cat in expense_cat:
-                v = expense_cat[cat]
-                msg += f"{cat}：{v['sum']:.2f}【{v['count']}笔】\n"
+        for cat, v in expense_cat.items():
+            msg += f"{cat}：{v['sum']:.2f}【{v['count']}笔】\n"
     if expense_uncat:
         msg += "未分类支出明细：\n"
         for amt, desc in expense_uncat:
@@ -707,9 +702,9 @@ async def add_bill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = f"记录成功：{last[0]:.2f}，{last[1]}\n"
         # 最近5笔
         if type_ == '收入':
-            msg += f"\n最近5笔收入（今天累计{today_count}笔）：\n"
+            msg += f"\n最近5笔收入【今天累计{today_count}笔】\n"
         else:
-            msg += f"\n最近5笔支出（今天累计{today_count}笔）：\n"
+            msg += f"\n最近5笔支出【今天累计{today_count}笔】\n"
         # 明细编号从今天累计N递减
         for idx, (amt, dsc) in zip(range(today_count, today_count-len(today_rows), -1), today_rows):
             msg += f"{idx}| {amt:.2f} | {dsc} |\n"
