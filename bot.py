@@ -1272,7 +1272,7 @@ if __name__ == '__main__':
         c.execute("REPLACE INTO authorizations (chat_id, username, start_date, end_date) VALUES (?, ?, ?, ?)", (chat.id, username, today.strftime('%Y-%m-%d'), end_date))
         conn.commit()
         conn.close()
-        await update.message.reply_text(f"已授权@{username}在本群使用机器人{days}天。")
+        await update.message.reply_text(f"已授权 @{username} 记账权限 {days} 天。")
 
     # 取消授权命令处理函数
     async def cancel_authorization(update: Update, context: ContextTypes.DEFAULT_TYPE):
