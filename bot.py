@@ -867,6 +867,42 @@ async def bill_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"{label_fmt}累计支出：{expense_sum:.2f}"
         await update.message.reply_text(msg)
         return ConversationHandler.END
+    elif kind == 'day':
+        # 只查本年
+        date_eq = f'{year}-{val}'
+        label_fmt = f"{year}年{val.replace('-', '月')}日"
+        # 收入
+        c.execute("SELECT amount, description FROM bills WHERE user_id=? AND type='收入' AND date = ? ORDER BY id DESC", (user_id, date_eq))
+        income_rows = c.fetchall()
+        c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='收入' AND date = ?", (user_id, date_eq))
+        income_sum = c.fetchone()[0] or 0.0
+        # 支出
+        c.execute("SELECT amount, description FROM bills WHERE user_id=? AND type='支出' AND date = ? ORDER BY id DESC", (user_id, date_eq))
+        expense_rows = c.fetchall()
+        c.execute("SELECT SUM(amount) FROM bills WHERE user_id=? AND type='支出' AND date = ?", (user_id, date_eq))
+        expense_sum = c.fetchone()[0] or 0.0
+        conn.close()
+        msg = f"{label_fmt}收入明细（共{len(income_rows)}笔）：\n"
+        if income_rows:
+            total = len(income_rows)
+            for idx, (amt, desc) in zip(range(total, 0, -1), income_rows):
+                msg += f"{idx}| {amt:.2f} | {desc} |\n"
+        else:
+            msg += "无收入记录\n"
+        msg += "\n"
+        msg += f"{label_fmt}累计收入：{income_sum:.2f}\n"
+        msg += "\n"
+        msg += f"{label_fmt}支出明细（共{len(expense_rows)}笔）：\n"
+        if expense_rows:
+            total = len(expense_rows)
+            for idx, (amt, desc) in zip(range(total, 0, -1), expense_rows):
+                msg += f"{idx}| {amt:.2f} | {desc} |\n"
+        else:
+            msg += "无支出记录\n"
+        msg += "\n"
+        msg += f"{label_fmt}累计支出：{expense_sum:.2f}"
+        await update.message.reply_text(msg)
+        return ConversationHandler.END
     elif kind == 'month':
         # 只处理无年份的“5”或“05”输入，年份用当前年
         month_str = f"{year}-{val}"
