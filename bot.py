@@ -37,7 +37,7 @@ async def remind_authorization_expiry(app: Application):
 
 import sqlite3
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, ChatMemberHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, ChatMemberHandler, Application
 from telegram.constants import ChatType
 from datetime import datetime, date, timedelta
 
