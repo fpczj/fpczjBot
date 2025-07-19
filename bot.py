@@ -1,7 +1,19 @@
+
+import os
+import re
+import sqlite3
+import asyncio
+from datetime import datetime, date, timedelta
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, ChatMemberHandler
+from telegram.constants import ChatType
 from telegram.error import BadRequest
+from apscheduler.schedulers.background import BackgroundScheduler
+
+OWNER_ID = 6557638908
+
 # 授权到期提醒定时任务
 async def remind_authorization_expiry(app: Application):
-    import asyncio
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     today = datetime.now().date()
@@ -37,7 +49,7 @@ async def remind_authorization_expiry(app: Application):
 
 import sqlite3
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, ChatMemberHandler, Application
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, ChatMemberHandler
 from telegram.constants import ChatType
 from datetime import datetime, date, timedelta
 
@@ -70,6 +82,8 @@ async def private_group_list(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("暂无群组信息。")
         return
     msg_list = []
+    import sqlite3
+    from datetime import date
     for gid in group_ids:
         try:
             chat = await context.bot.get_chat(gid)
@@ -89,7 +103,32 @@ async def private_group_list(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     admin_lines.append(f"{a.user.full_name}：{uname}")
             except Exception:
                 admin_lines = ["（获取失败，需机器人为管理员）"]
-            msg = f'群组名称：“{group_title}”\n{member_str}\n管理员：\n' + '\n'.join(admin_lines)
+
+            # 查询被授权人列表
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                today = date.today()
+                c.execute("SELECT username, end_date FROM authorizations WHERE chat_id=? AND end_date>=?", (gid, today.strftime('%Y-%m-%d')))
+                rows = c.fetchall()
+                conn.close()
+                if rows:
+                    auth_lines = []
+                    for username, end_date in rows:
+                        try:
+                            d1 = today
+                            d2 = date.fromisoformat(end_date)
+                            left = (d2 - d1).days
+                        except Exception:
+                            left = '?'
+                        auth_lines.append(f"@{username}（剩余{left}天）")
+                    auth_str = '被授权人：\n' + '\n'.join(auth_lines)
+                else:
+                    auth_str = '被授权人：无'
+            except Exception:
+                auth_str = '被授权人：查询失败'
+
+            msg = f'群组名称：“{group_title}”\n{member_str}\n{auth_str}\n管理员：\n' + '\n'.join(admin_lines)
             msg_list.append(msg)
         except Exception:
             continue
@@ -1061,13 +1100,13 @@ def save_group_ids(group_ids):
 
 
 def main():
+    init_db()
+    app = Application.builder().token('7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM').build()
     # 私聊“群组”关键词，展示所有群组信息（仅 OWNER_ID 或管理员）
     app.add_handler(MessageHandler(
         filters.ChatType.PRIVATE & filters.Regex(r'^(群组)$'),
         private_group_list
     ))
-    init_db()
-    app = Application.builder().token('7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM').build()
     # 授权命令处理（所有人都能触发 handler，但函数体内首行强制权限校验，仅 OWNER_ID 可用，其他人一律无权并提示）
     app.add_handler(MessageHandler(
         filters.TEXT & (~filters.COMMAND) & filters.Regex(r'^授权\s+@\S+\s+\d+$') & filters.User(user_id=OWNER_ID),
