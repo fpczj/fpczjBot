@@ -1126,7 +1126,8 @@ def main():
         states={
             REPORT_WAIT_DATE: [MessageHandler(filters.TEXT & (~filters.COMMAND), report_show)]
         },
-        fallbacks=[]
+        fallbacks=[],
+        conversation_timeout=6
     )
     app.add_handler(report_conv)
     # 账单对话，支持/账单和“账单”关键词
@@ -1138,7 +1139,8 @@ def main():
         states={
             BILL_WAIT_DATE: [MessageHandler(filters.TEXT & (~filters.COMMAND), bill_show)]
         },
-        fallbacks=[]
+        fallbacks=[],
+        conversation_timeout=6
     )
     app.add_handler(bill_conv)
     # 删除账单对话，支持/delete、删除、清除
@@ -1151,7 +1153,8 @@ def main():
             DELETE_WAIT_DATE: [MessageHandler(filters.TEXT & (~filters.COMMAND), delete_wait_date)],
             DELETE_WAIT_CHOICE: [MessageHandler(filters.TEXT & (~filters.COMMAND), delete_wait_choice)]
         },
-        fallbacks=[]
+        fallbacks=[],
+        conversation_timeout=6
     )
     app.add_handler(delete_conv)
     # 其他命令
