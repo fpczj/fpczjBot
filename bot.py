@@ -1,3 +1,39 @@
+from telegram.error import BadRequest
+# 授权到期提醒定时任务
+async def remind_authorization_expiry(app: Application):
+    import asyncio
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    today = datetime.now().date()
+    for delta in [2, 1]:
+        target_date = (today + timedelta(days=delta)).strftime('%Y-%m-%d')
+        c.execute("SELECT chat_id, username, end_date FROM authorizations WHERE end_date=?", (target_date,))
+        rows = c.fetchall()
+        for chat_id, username, end_date in rows:
+            # 获取群组名
+            try:
+                chat = await app.bot.get_chat(chat_id)
+                group_title = chat.title or "群组"
+            except Exception:
+                group_title = "群组"
+            # 群主提醒
+            owner_msg = f"@{username} 在“{group_title}”群组记账权限还剩{delta}天。"
+            try:
+                await app.bot.send_message(chat_id=OWNER_ID, text=owner_msg)
+            except BadRequest:
+                pass
+            except Exception:
+                pass
+            # 被授权人提醒
+            user_msg = f"您在“{group_title}”记账权限还有{delta}天。"
+            try:
+                # 需被授权人私聊过机器人才能发私信
+                await app.bot.send_message(chat_id=f"@{username}", text=user_msg)
+            except BadRequest:
+                pass
+            except Exception:
+                pass
+    conn.close()
 
 import sqlite3
 from telegram import Update
@@ -1025,6 +1061,11 @@ def save_group_ids(group_ids):
 
 
 def main():
+    # 私聊“群组”关键词，展示所有群组信息（仅 OWNER_ID 或管理员）
+    app.add_handler(MessageHandler(
+        filters.ChatType.PRIVATE & filters.Regex(r'^(群组)$'),
+        private_group_list
+    ))
     init_db()
     app = Application.builder().token('7536100847:AAHslrzRe8eo9NmquNBSaYwSg0cgBU28GyM').build()
     # 授权命令处理（所有人都能触发 handler，但函数体内首行强制权限校验，仅 OWNER_ID 可用，其他人一律无权并提示）
@@ -1036,9 +1077,9 @@ def main():
         filters.TEXT & (~filters.COMMAND) & filters.Regex(r'^取消授权\s+@\S+$') & filters.User(user_id=OWNER_ID),
         cancel_authorization
     ))
-    # 启动定时任务
+    # 启动定时任务（每天中午12点提醒授权到期）
     scheduler = BackgroundScheduler()
-    scheduler.add_job(lambda: asyncio.create_task(check_authorization_expiry(app)), 'cron', hour=8, minute=0)  # 每天8点检查
+    scheduler.add_job(lambda: asyncio.create_task(remind_authorization_expiry(app)), 'cron', hour=12, minute=0)
     scheduler.start()
     # 启动时加载群组ID
     app.bot_data['group_ids'] = load_group_ids()
